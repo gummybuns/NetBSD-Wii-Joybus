@@ -1,0 +1,1 @@
+# NetBSD Wii Joybus
