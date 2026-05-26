@@ -7,6 +7,8 @@
 #include <string.h>
 #include <unistd.h>
 
+#include "../../wiishared/ioctl.h"
+
 #define SI_TRANS_DELAY 	50
 #define GBA_READ	0x14
 #define GBA_WRITE	0x15
@@ -16,23 +18,6 @@ struct rom {
 	unsigned char 	*buf;
 	long		size;
 };
-
-struct gba_send {
-	uint32_t	status;		/* status from sisr */
-	uint32_t        insize;         /* number of bytes for in buffer */
-	uint32_t        outsize;        /* number of bytes for out buffer */
-	void            *in;            /* buffer to store response */
-	void            *out;           /* buffer to send out to ext device */
-};
-
-struct gba_multiboot {
-        long    size;
-        void    *rom;
-};
-
-
-#define GBA_SEND     _IOWR(0, 1, struct gba_send)
-#define GBA_MULTIBOOT       _IOWR(0, 2, struct gba_multiboot)
 
 static const char * gba_device = "/dev/gba0";
 static const char * gba_file = "gba.mb.gba";
