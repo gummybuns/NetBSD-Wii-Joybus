@@ -8,8 +8,6 @@
 #include <unistd.h>
 
 #define SI_TRANS_DELAY 	50
-#define GBA_READ	0x14
-#define GBA_WRITE	0x15
 
 struct rom {
 	const char 	*path;
@@ -17,12 +15,17 @@ struct rom {
 	long		size;
 };
 
-struct gba_send {
-	uint32_t	status;		/* status from sisr */
-	uint32_t        insize;         /* number of bytes for in buffer */
-	uint32_t        outsize;        /* number of bytes for out buffer */
-	void            *in;            /* buffer to store response */
-	void            *out;           /* buffer to send out to ext device */
+struct gba_write {
+	uint32_t *status;
+	uint8_t *in;
+	uint32_t out;
+	long delay;
+};
+
+struct gba_read {
+	uint32_t *status;
+	uint32_t *in;
+	long delay;
 };
 
 struct gba_multiboot {
@@ -31,8 +34,10 @@ struct gba_multiboot {
 };
 
 
-#define GBA_SEND     _IOWR(0, 1, struct gba_send)
-#define GBA_MULTIBOOT       _IOWR(0, 2, struct gba_multiboot)
+#define GBA_SEND     	_IOWR(0, 1, struct gba_send)
+#define GBA_MULTIBOOT	_IOWR(0, 2, struct gba_multiboot)
+#define GBA_WRITE       _IOWR(0, 3, struct gba_write)
+#define GBA_READ        _IOWR(0, 4, struct gba_read)
 
 static const char * gba_device = "/dev/gba0";
 static const char * gba_file = "gba.mb.gba";
@@ -40,6 +45,7 @@ static const char * gba_file = "gba.mb.gba";
 int fd;
 uint8_t gba_out[5];
 uint8_t gba_in[4];
+uint32_t status;
 
 static int
 read_rom(struct rom *r)
@@ -69,52 +75,17 @@ read_rom(struct rom *r)
 	return 0;
 }
 
-static uint32_t
-gba_write(uint32_t val, long delay)
-{
-	struct gba_send gbs;
-	uint8_t out[5];
-	uint8_t in[1];
-	uint8_t *p;
-
-	p = out + 1;
-	out[0] = GBA_WRITE;
-	((uint32_t *)p)[0] = bswap32(val);
-	gbs.in = in;
-	gbs.out = out;
-	gbs.insize = 1;
-	gbs.outsize = 5;
-	usleep(delay);
-	ioctl(fd, GBA_SEND, &gbs);
-	return (uint32_t)(in[0]);
-}
-
-static uint32_t
-gba_read(long delay)
-{
-	struct gba_send gbs;
-	uint8_t out[1];
-	uint8_t in[5];
-	uint8_t *p;
-
-	out[0] = GBA_READ;
-	gbs.in = in;
-	gbs.out = out;
-	gbs.insize = 5;
-	gbs.outsize = 1;
-	usleep(delay);
-	ioctl(fd, GBA_SEND, &gbs);
-
-	/* first route bytes are the value. last byte is the status */
-	return bswap32(*(uint32_t *)in);
-}
-
 static void
 wait_clear(long delay)
 {
 	uint32_t v;
+	struct gba_read gbr;
 	for (;;) {
-		v = gba_read(delay);
+		gbr.status = &status;
+		gbr.in = &v;
+		gbr.delay = SI_TRANS_DELAY;
+		ioctl(fd, GBA_READ, &gbr);
+		//status = gbr.status;
 		if (v == 0) break;
 	}
 }
@@ -125,12 +96,18 @@ main(int argc, char *argv[])
 	int res, count, i;
 	struct rom rom;
 	struct gba_multiboot gbm;
-	struct gba_send gbs;
+	struct gba_write gbw;
+	struct gba_read gbr;
 	char msg[127];
 	char inmsg[127];
-	uint8_t out[128];
 	uint16_t msg_len;
-	uint32_t in[1];
+	uint8_t write_in;
+	uint32_t read_in;
+
+	gbw.delay = SI_TRANS_DELAY;
+	gbr.delay = SI_TRANS_DELAY;
+	gbr.status = &status;
+	gbw.status = &status;
 
 	fd = open(gba_device, O_RDWR);
 	if (fd == -1) {
@@ -157,26 +134,37 @@ main(int argc, char *argv[])
 	
 	for(;;) {
 		printf("================\n");
-		printf("ENTER A MESSAGE:\n");
+		printf("\nENTER A MESSAGE:\n");
 		memset(msg, 0, sizeof(msg));
 		memset(inmsg, 0, sizeof(inmsg));
 		fgets(msg, sizeof(msg), stdin);
 		msg_len = strlen(msg);
-		uint32_t sendsize = ((msg_len+7)&~7);	
-
-		for (int i = 0; i < sendsize; i += 4) {
-			char *p = msg + i;
-			gba_write(*(uint32_t *)p, SI_TRANS_DELAY);
-		}
-		printf("SENT:\n%s", msg);
+		uint32_t sendsize = ((msg_len+3)&~3);	
 
 		wait_clear(SI_TRANS_DELAY);
 
 		for (int i = 0; i < sendsize; i += 4) {
-			char *p = inmsg + i;
-			((uint32_t *)p)[0] = gba_read(SI_TRANS_DELAY);
+			char *p = msg + i;
+			gbw.out = bswap32(*(uint32_t *)p);
+			gbw.in = &write_in;
+			ioctl(fd, GBA_WRITE, &gbw);
 		}
-		printf("RECEIVED:\n");
+		printf("\nSENT:\n%s", msg);
+
+		printf("\nRECEIVED:\n");
+		i = 0;
+		int count = 0;
+		while (i < sendsize) {
+			count++;
+			gbr.in = &read_in;
+			ioctl(fd, GBA_READ, &gbr);
+			if (read_in != 0) {
+				char *p = inmsg + i;
+				((uint32_t *)p)[0] = bswap32(read_in);
+				i += 4;
+			}
+		}
+
 		printf("%s\n", inmsg);
 	}
 cleanup:

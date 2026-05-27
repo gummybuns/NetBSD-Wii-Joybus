@@ -24,38 +24,27 @@ int main()
 	linkCube->activate();
 
 	u32 recv;
-	char msg[128];
-	char to_print[128];
-	bool print_ready = false;
-	bool reset = false;
-	u32 vblanks = 0;
-	int i, j;
+	int i;
 
 	tte_write("Waiting for messages\n");
-	i = 0;
 	while (true) {
-		if (print_ready) {
-			tte_write(to_print);
-			print_ready = false;
-		}
-
 		while (linkCube->canRead()) {
 			recv = linkCube->read();
-			for (j = 0; j < 4; j++) {
-				msg[i+j] = (u8)(recv >> (32 - (j+1)*8) & 0xFF);
-				if (msg[i+j] == '\0') {
-					snprintf(to_print, sizeof(to_print), "%s\n", msg);
-					print_ready = true;
-					/*
-					 * kinda hacky but we add 4 at the end
-					 * of the loop so to reset msg we do -4
+			linkCube->send(recv);
+			for (i = 0; i < 4; i++) {
+				u8 c = (u8)(recv >> (32 - (i+1)*8) & 0xFF);
+				if (c == '\n') {
+					/* i dont really know how to get
+					 * tte_putc to newline on its own.
+					 * i guess there is some magic in
+					 * tte_write to handle the cursor
 					 */
-					i = -4;
+					tte_write("\n");
 					break;
+				} else {
+					tte_putc(c);
 				}
 			}
-			linkCube->send(recv);
-			i += 4;
 		}
 
 		// Clear
@@ -63,17 +52,6 @@ int main()
 			tte_erase_screen();
 			tte_set_pos(0, 0);
 			tte_write("Waiting for messages\n");
-		}
-
-
-		// Reset warning
-		if (linkCube->didReset()) {
-			reset = true;
-			vblanks = 0;
-		}
-		if (reset) {
-			vblanks++;
-			if (vblanks > 60) reset = false;
 		}
 
 		VBlankIntrWait();
