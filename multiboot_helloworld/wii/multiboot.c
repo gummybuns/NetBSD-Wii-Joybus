@@ -11,7 +11,7 @@
 #include "../../wiishared/lib/multiboot.h"
 
 
-#define DEFAULT_PATH "../gba/gba.mb.gba"
+#define DEFAULT_PATH "../gba/gba_mb.gba"
 
 static const char *shortopts = "d:g::";
 static struct option longopts[] = {
