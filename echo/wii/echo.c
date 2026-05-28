@@ -40,7 +40,7 @@ struct gba_multiboot {
 #define GBA_READ        _IOWR(0, 4, struct gba_read)
 
 static const char * gba_device = "/dev/gba0";
-static const char * gba_file = "gba.mb.gba";
+static const char * gba_file = "../gba/gba.mb.gba";
 
 int fd;
 uint8_t gba_out[5];
