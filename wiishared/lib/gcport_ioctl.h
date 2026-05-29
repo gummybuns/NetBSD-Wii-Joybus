@@ -3,8 +3,15 @@
 
 #include <fcntl.h>
 
-#define GBA_WRITE 0x15
-#define GBA_READ 0x14
+/* The command itself is only 1 byte, however the response to these commands
+ * may not touch the subsequent bytes in the buf. By explicitly making the
+ * command 4 bytes we ensure that the response has zeros instead of garbage
+ */
+#define CMD_IDENTIFY	0x00000000
+#define CMD_RESET	0xFF000000
+
+#define GBA_WRITE 	0x15
+#define GBA_READ 	0x14
 
 struct si_payload {
 	uint32_t	insize;		/* number of bytes for in buffer */
@@ -45,7 +52,6 @@ gba_read(int fd, uint32_t *status, long delay)
        struct si_payload payload;
        uint8_t out[1];
        uint8_t in[5];
-       uint8_t *p;
 
        out[0] = GBA_READ;
        payload.in = in;
@@ -66,7 +72,7 @@ cmd_identify(int fd, uint32_t *status, long delay)
 	struct si_payload payload;
 	uint32_t out[1];
 	uint32_t in[1];
-	out[0] = 0x00000000;
+	out[0] = CMD_IDENTIFY;
 
 	payload.outsize = 1;
 	payload.insize = 3;
@@ -86,7 +92,7 @@ cmd_reset(int fd, uint32_t *status, long delay)
 	uint32_t out[1];
 	uint32_t in[1];
 	int err;
-	out[0] = 0xFF000000;
+	out[0] = CMD_RESET;
 
 	payload.outsize = 1;
 	payload.insize = 3;

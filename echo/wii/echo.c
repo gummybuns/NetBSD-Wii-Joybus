@@ -13,6 +13,8 @@
 
 #define DEFAULT_PATH 	"../gba/gba.mb.gba"
 #define DELAY		50
+#define READY_TIMEOUT	100000
+#define MSG_TIMEOUT	5000
 
 uint32_t status;
 int fd;
@@ -31,12 +33,18 @@ usage(void)
 }
 
 static void
-wait_clear(long delay)
+wait_clear(long delay, long timeout)
 {
 	uint32_t v;
+	long count = 0;
 	for (;;) {
 		v = gba_read(fd, &status, DELAY);
 		if (v == 0) break;
+		printf("status: 0x%08X\n", status);
+		if (count > timeout) {
+			errx(1, "gba failed to get ready\n");
+		}
+		count++;
 	}
 }
 
@@ -47,6 +55,7 @@ main(int argc, char *argv[])
 	struct rom rom;
 	char msg[127];
 	char inmsg[127];
+	char *p;
 	const char *device, *gba_file;
 	uint16_t msg_len;
 	uint8_t write_in;
@@ -82,16 +91,17 @@ main(int argc, char *argv[])
 
 	if (gba_file != NULL) {
 		rom.path = gba_file;
-		if (read_rom(&rom) != 0) {
+		if ((res = read_rom(&rom)) != 0) {
 			errx(1, "failed to read rom");
 		}
 
-		if (multiboot(fd, &rom) != 0) {
+		if ((res = multiboot(fd, &rom)) != 0) {
 			errx(1, "failed to multiboot");
 		}
 	}
 
-	wait_clear(DELAY);
+	printf("waiting for gameboy...\n");
+	wait_clear(DELAY, READY_TIMEOUT);
 	
 	for(;;) {
 		printf("================\n");
@@ -102,10 +112,10 @@ main(int argc, char *argv[])
 		msg_len = strlen(msg);
 		uint32_t sendsize = ((msg_len+3)&~3);	
 
-		wait_clear(DELAY);
+		wait_clear(DELAY, MSG_TIMEOUT);
 
-		for (int i = 0; i < sendsize; i += 4) {
-			char *p = msg + i;
+		for (i = 0; i < sendsize; i += 4) {
+			p = msg + i;
 			gba_write(fd, bswap32(*(uint32_t *)p), &status, DELAY);
 		}
 		printf("\nSENT:\n%s", msg);
@@ -117,7 +127,7 @@ main(int argc, char *argv[])
 			count++;
 			read_in = gba_read(fd, &status, DELAY);
 			if (read_in != 0) {
-				char *p = inmsg + i;
+				p = inmsg + i;
 				((uint32_t *)p)[0] = bswap32(read_in);
 				i += 4;
 			}

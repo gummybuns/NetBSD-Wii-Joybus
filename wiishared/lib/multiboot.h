@@ -1,6 +1,7 @@
 #ifndef _MULTIBOOT_H
 #define _MULTIBOOT_H
 
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -8,6 +9,7 @@
 #include "./gcport_ioctl.h"
 
 #define MB_DELAY 	50
+#define MB_MAX_RETRY	10000
 
 struct rom {
 	const char 	*path;
@@ -116,6 +118,11 @@ static int multiboot(int fd, struct rom *r)
 		res = cmd_identify(fd, &status, MB_DELAY);
 		if (res & 0x00001000) {
 			break;
+		}
+		if (count > MB_MAX_RETRY) {
+			errno = EAGAIN;
+			return 1;
+
 		}
 		count++;
 	}
