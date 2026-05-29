@@ -40,7 +40,6 @@ wait_clear(long delay, long timeout)
 	for (;;) {
 		v = gba_read(fd, &status, DELAY);
 		if (v == 0) break;
-		printf("status: 0x%08X\n", status);
 		if (count > timeout) {
 			errx(1, "gba failed to get ready\n");
 		}
