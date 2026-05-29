@@ -11,6 +11,7 @@
 
 # --- Paths ---
 export TONCLIB := ${DEVKITPRO}/libtonc
+export LIBGBA:= ${DEVKITPRO}/libgba
 
 # === TONC RULES ======================================================
 #
@@ -131,13 +132,14 @@ export PATH	:=	$(DEVKITARM)/bin:$(PATH)
 export PROJ	?= $(notdir $(CURDIR))
 TITLE		:= $(PROJ)
 
-LIBS		:= -ltonc -lugba
+LIBS		:= -ltonc -lugba -lmm
 
 BUILD		:= build
 SRCDIRS		:= src ../../gbashared/_lib ../../gbashared/lib ../../gbashared/lib/iwram_code
 DATADIRS	:= data
 INCDIRS		:= src
-LIBDIRS		:= $(TONCLIB) $(PWD)/../../gbashared/_lib/libugba
+LIBDIRS		:= $(TONCLIB) $(PWD)/../../gbashared/_lib/libugba $(LIBGBA)
+MUSIC		:= maxmod_data
 
 # --- switches ---
 
@@ -227,6 +229,12 @@ CPPFILES	:=	$(foreach dir, $(SRCDIRS) , $(notdir $(wildcard $(dir)/*.cpp)))
 SFILES		:=	$(foreach dir, $(SRCDIRS) , $(notdir $(wildcard $(dir)/*.s)))
 BINFILES	:=	$(foreach dir, $(DATADIRS), $(notdir $(wildcard $(dir)/*.*)))
 
+# --- Music ? ---
+ifneq ($(strip $(MUSIC)),)
+	export AUDIOFILES	:=	$(foreach dir,$(notdir $(wildcard $(MUSIC)/*.*)),$(CURDIR)/$(MUSIC)/$(dir))
+	BINFILES += soundbank.bin
+endif
+
 # --- Set linker depending on C++ file existence ---
 ifeq ($(strip $(CPPFILES)),)
 	export LD	:= $(CC)
@@ -238,6 +246,9 @@ endif
 export OFILES	:=	$(addsuffix .o, $(BINFILES))					\
 					$(CFILES:.c=.o) $(CPPFILES:.cpp=.o)				\
 					$(SFILES:.s=.o)
+
+
+export HFILES := $(addsuffix .h,$(subst .,_,$(BINFILES)))
 
 # --- Create include and library search paths ---
 export INCLUDE	:=	$(foreach dir,$(INCDIRS),-I$(CURDIR)/$(dir))	\
@@ -269,6 +280,23 @@ DEPENDS	:=	$(OFILES:.o=.d)
 $(OUTPUT).gba	:	$(OUTPUT).elf
 
 $(OUTPUT).elf	:	$(OFILES)
+
+$(OFILES)	:	$(HFILES)
+
+#---------------------------------------------------------------------------------
+# rule to build soundbank from music files
+#---------------------------------------------------------------------------------
+soundbank.bin soundbank.h : $(AUDIOFILES)
+#---------------------------------------------------------------------------------
+	@mmutil $^ -osoundbank.bin -hsoundbank.h
+
+#---------------------------------------------------------------------------------
+# This rule links in binary data with the .bin extension
+#---------------------------------------------------------------------------------
+%.bin.o	%_bin.h :	%.bin
+#---------------------------------------------------------------------------------
+	@echo $(notdir $<)
+	@$(bin2o)
 
 -include $(DEPENDS)
 

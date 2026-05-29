@@ -4,6 +4,12 @@
 #include "../../../gbashared/_lib/interrupt.h"
 #include <string.h>
 
+extern "C" {
+	#include <maxmod.h>
+	#include "soundbank.h"
+	#include "soundbank_bin.h"
+}
+
 bool a = true, b = true, l = true;
 
 LinkCube* linkCube = new LinkCube();
@@ -12,7 +18,7 @@ void init() {
  	Common::initTTE();
 
   	interrupt_init();
-  	interrupt_add(INTR_VBLANK, []() {});
+  	interrupt_add(INTR_VBLANK, mmVBlank);
   	interrupt_add(INTR_SERIAL, LINK_CUBE_ISR_SERIAL);
 }
 
@@ -22,9 +28,18 @@ int main()
 	init();
 
 	linkCube->activate();
+	mmInitDefault( (mm_addr)soundbank_bin, 8 );
 
 	u32 recv;
 	int i;
+
+	mm_sound_effect ding {
+		{ SFX_DING },
+		1024,
+		0,
+		255,
+		0
+	};
 
 	tte_write("Waiting for messages\n");
 	while (true) {
@@ -40,6 +55,7 @@ int main()
 					 * tte_write to handle the cursor
 					 */
 					tte_write("\n");
+					mmEffectEx(&ding);
 					break;
 				} else {
 					tte_putc(c);
@@ -55,6 +71,7 @@ int main()
 		}
 
 		VBlankIntrWait();
+		mmFrame();
 	}
 
 	return 0;
