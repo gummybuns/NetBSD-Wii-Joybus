@@ -8,7 +8,7 @@
 
 #include "./gcport_ioctl.h"
 
-#define MB_DELAY 	50
+#define MB_DELAY 	100
 #define MB_MAX_RETRY	10000
 
 struct rom {
