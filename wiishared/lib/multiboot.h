@@ -117,9 +117,19 @@ static int multiboot(int fd, struct rom *r)
 		cmd_reset(fd, &status, MB_DELAY);
 		res = cmd_identify(fd, &status, MB_DELAY);
 		if (res & 0x00001000) {
+			/*
+			 * TODO - it seems that printing adds just enough
+			 * delay to the multiboot protocol exactly at this
+			 * step to continue. I can prolly just add an extra
+			 * delay right here instead..
+			 * my guess is the reset/identify need an extra bit of
+			 * time before you can start sending the data
+			 */
+			printf("multiboot: gba is ready\n", res);
 			break;
 		}
 		if (count > MB_MAX_RETRY) {
+			printf("GIVING UP\n");
 			errno = EAGAIN;
 			return 1;
 
