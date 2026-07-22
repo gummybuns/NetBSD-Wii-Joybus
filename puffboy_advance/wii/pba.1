@@ -1,0 +1,221 @@
+.\"     $NetBSD: aiomixer.1,v 1.3 2023/07/01 10:47:12 nia Exp $
+.\"
+.\" Copyright (c) 2021 The NetBSD Foundation, Inc.
+.\" All rights reserved.
+.\"
+.\" This code is derived from software contributed to The NetBSD Foundation
+.\" by Nia Alarie.
+.\"
+.\" Redistribution and use in source and binary forms, with or without
+.\" modification, are permitted provided that the following conditions
+.\" are met:
+.\" 1. Redistributions of source code must retain the above copyright
+.\"    notice, this list of conditions and the following disclaimer.
+.\" 2. Redistributions in binary form must reproduce the above copyright
+.\"    notice, this list of conditions and the following disclaimer in the
+.\"    documentation and/or other materials provided with the distribution.
+.\"
+.\" THIS SOFTWARE IS PROVIDED BY THE NETBSD FOUNDATION, INC. AND CONTRIBUTORS
+.\" ``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
+.\" TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+.\" PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL THE FOUNDATION OR CONTRIBUTORS
+.\" BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+.\" CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+.\" SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+.\" INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+.\" CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+.\" ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+.\" POSSIBILITY OF SUCH DAMAGE.
+.\"
+.Dd April 18, 2025
+.Dt AUDIOV 1
+.Os
+.Sh NAME
+.Nm audiov
+.Nd graphical audio frequency visualizer
+.Sh SYNOPSIS
+.Nm audiov
+.Op Fl c Ar channels
+.Op Fl d Ar device
+.Op Fl e Ar encoding
+.Op Fl f Ar fft-samples
+.Op Fl m Ar fft-min
+.Op Fl h
+.Op Fl o Ar output-device
+.Op Fl p Ar precision
+.Op Fl s Ar sample-rate
+.Op Fl C Ar color
+.Op Fl E Ar color-end
+.Op Fl H Ar box-height
+.Op Fl M Ar milliseconds
+.Op Fl N Ar num-bars
+.Op Fl S Ar box-space
+.Op Fl U
+.Op Fl W Ar bar-width
+.Op Fl X
+.Sh DESCRIPTION
+.Nm
+is a
+.Xr curses 3
+frontend to test
+.Nx
+.Xr audio 4
+recording devices.
+.Pp
+.Nm
+continually captures input from the
+.Ar device
+and renders visualizations of that data in the frequency domain
+.Pp
+The following options are available:
+.Bl -tag -width indent
+.It Fl c, Fl -channels Ar channels Ac
+The number of channels to use with the recording device. Defaults to the
+preconfigured value for the device.
+.It Fl d, Fl -device Ar device Ac
+The recording audio device. Write access to the device is required. Defaults to
+/dev/sound.
+.It Fl e, Fl -encoding Ar encoding Ac
+The encoding to use with the recording device. The following options are
+available: ulinear, ulinear_le, ulinear_be, slinear, slinear_le, slinear_be.
+Defaults to the preconfigured value for the device.
+.It Fl f, Fl -fft-samples Ar fft-samples Ac
+The number of samples to use for each fast fourier transform. The number of
+samples configures the precision of the fourier transform (bins = samples / 2).
+Defaults to 1024.
+.It Fl h, Fl -help Ac
+Prints a help message.
+.It Fl m, Fl -fft-min Ar fft-min Ac
+The starting frequency for the first bar of the visualization. Defaults to 50.
+.It Fl o, Fl -output-device Ar output-device Ac
+The audio device to play the recorded audio. The output device will be
+configured to match the same settings as the
+.Ar device
+.It Fl p, Fl -precision Ar precision Ac
+The bit precision of each sample. Defaults to the preconfigured value for the
+device.
+.It Fl s, Fl -sample-rate Ar sample-rate Ac
+The sample rate of the device. Determines the max frequency of fast fourier
+transform (fmax = sample-rate / 2). Defaults to the preconfigured value for the
+device.
+.It Fl C, Fl -color Ar color Ac
+The color of each bar. By default color mode is disabled. Specifing the color
+automatically enables color mode so -U does not have to be explicitly added.
+.It Fl E, Fl -color-end Ar color-end Ac
+The end color of each bar. If specified, each bar will transition from color
+to color-end as the magnitude increases. color-end will be
+ignored unless box mode (-X) is enabled and color (-C) are specified.
+.It Fl H, Fl -box-height Ar box-height Ac
+Specifies the height of each box in a bar. Will be ignored unless box mode (-X)
+is enabled. Defaults to 2.
+.It Fl M, Fl -milliseconds Ar milliseconds Ac
+The duration of recorded audio captured every interval. Defaults to 150.
+.It Fl N, Fl -num-bars Ar num-bars Ac
+The number of bars to render. Defaults to a computation based on the configured
+bar-width and the size of the screen.
+.It Fl S, Fl -box-space Ar box-space Ac
+Specifies the amount of space between each box of a bar. Will be ignored unless
+box mode (-X) is enabled. Defaults to 1.
+.It Fl U, Fl -use-colors
+Enables color mode. Each bar will be filled in using the system's default text
+color, unless overridden by specifying a color (-C).
+.It Fl W, Fl -bar-width
+The width of each individual bar.
+.It Fl X, Fl -use-boxes
+Enables box mode. When enabled, each bar is broken into discrete boxes, each of
+size box-height (-H), separated by box-space (-S).
+.Sh COLORS
+.Pp
+.Nm
+can render colors if
+.Ar color
++
+.Ar color-end
+are specified. The following options are available:
+.Bl -tag -width indent
+.It black, red, yellow, blue, magenta, cyan, white
+.Sh NAVIGATION
+.Pp
+.Nm
+uses the following keys for navigation:
+.Bl -tag -width indent
+.It V
+View the Frequency domain of the recorded audio.
+.It I
+View all configuration details. Can use j/k to scroll.
+.It Q
+Exit the application.
+.Sh Playback Support
+.Pp
+.Nm
+supports playback of the recorded audio when the
+.Ar output-device
+is specified. The
+.Ar output-device
+will have its device configuration match the settings of the
+.Ar device
+and will throw an error if for some reason that configuration fails to set.
+There is no noise/echo reduction and
+.Nm
+is easily susceptible to a painful feedback loop unless the
+.Ar output-device
+is headphones or something that prevents the
+.Ar device
+from picking up output.
+.Pp
+.Nm
+can support
+.Xr pad 4
+devices when specified as the
+.Ar device
+and playback can then be echo'd when specifying the
+.Ar output-device
+as a physical audio device.
+.D1 audiov -d /dev/pad0 -o /dev/audio1
+.D1 mpg123 -a /dev/audio2 /path/to/music.mp3
+.Sh EXAMPLES
+.D1 audiov -d /dev/audio2
+.D1 audiov -U -W 8
+.D1 audiov -C red -M 100
+.D1 audiov -X -C cyan -E blue
+.D1 audiov -X -C red -E green -S 0
+.Sh SEE ALSO
+.Xr audio 4
+.Xr audiocfg 1
+.Xr pad 4
+.Sh AUTHORS
+.Nm
+was written by
+.An Zac Brown
+.Aq gummybuns@protonmail.com .
+.Sh Bugs
+.Pp
+When
+.Ar device
+is specified as a
+.Xr pad 4
+device,
+.Nm
+will show a blank screen until audio is streamed to the newly created device
+.Pp
+When
+.Ar device
+is specified as a
+.Xr pad 4
+device
+and
+.Ar output-device
+is not included,
+.Nm
+will appear to flicker. I believe this is because the
+.Xr pad 4
+device is padded with zeros until the full dataset can be read.
+.Pp
+When
+.Ar device
+is specified as a
+.Xr pad 4
+device, the navigation buttons do not reliably work, especially when there is
+no audio streaming. This is because reading from the
+.Ar device
+is a blocking call. If you need to exit ctrl-c works

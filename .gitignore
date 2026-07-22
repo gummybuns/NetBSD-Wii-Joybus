@@ -4,3 +4,35 @@
 
 
 *.swp
+
+*.d
+*.core
+
+*.o
+*.ko
+*.obj
+*.elf
+
+*.ilk
+*.map
+*.exp
+
+bin/*
+
+*.lib
+*.a
+*.la
+*.lo
+
+*.dll
+*.so
+*.so.*
+*.exe
+*.out
+
+.gdbinit
+*.BAK
+
+*.html1
+
+pba
