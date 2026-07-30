@@ -5,7 +5,7 @@ SRCS+=	main.c
 
 CPPFLAGS+=	-D_KERNTYPES -g
 DPADD+=		${LIBPUFFS}
-LDADD+=		-lpuffs -lc
+LDADD+=		-lpuffs -lc -lutil
 
 WARNS=	6
 

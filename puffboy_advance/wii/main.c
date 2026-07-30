@@ -1,3 +1,5 @@
+#include <sys/queue.h>
+
 #include <err.h>
 #include <errno.h>
 #include <paths.h>
@@ -5,29 +7,39 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <util.h>
 
 struct gba_node {
 	uint32_t id;
 	unsigned char is_dir;
+	struct puffs_node *pn;
+	struct puffs_usermount *pu;
+	char *name;
+	size_t namelen;
+	SLIST_ENTRY(gba_node) entries;
+	SLIST_HEAD(, gba_node) head;
 };
+
+#define TEST_FILE_NAME "hello.txt"
 
 /*
  * Looking at other examples the first thing you want to do is create the root
  * node.
  */
 static int
-puffboy_domount(struct puffs_usermount *pu)
+puffboy_domount(struct puffs_usermount *pu, struct gba_node *gn)
 {
 	struct puffs_node *root;
 	printf("in domount\n");
 
-	root = puffs_pn_new(pu, NULL);
+	root = puffs_pn_new(pu, gn);
 	root->pn_va.va_type = VDIR;
 	root->pn_va.va_mode = 0755;
 	if (!root) {
 		err(1, "failed to create root node");
 	}
 
+	gn->pn = root;
 	puffs_setroot(pu, root);
 	return 0;
 }
@@ -78,12 +90,15 @@ static void *
 addrcmp(struct puffs_usermount *pu, struct puffs_node *pn, void *arg)
 {
 
+	struct puffs_node *arg_pn = (struct puffs_node *) arg;
 	struct gba_node *pn_gn = (struct gba_node *) pn->pn_data;
-	struct gba_node *arg_gn = (struct gba_node *) arg;
+	struct gba_node *arg_gn = arg_pn->pn_data;
 
+	printf("addrcmp: comparing %d - %d\n", pn_gn->id, arg_gn->id);
 	if (pn_gn->id == arg_gn->id) return pn;
 	return NULL;
 }
+
 
 static int
 puffboy_node_lookup(struct puffs_usermount *pu, puffs_cookie_t opc,
@@ -115,6 +130,122 @@ puffboy_node_lookup(struct puffs_usermount *pu, puffs_cookie_t opc,
   	return 0;
 }
 
+static struct gba_node *
+get_nth_entry(struct gba_node *gn, int n)
+{
+	struct gba_node *entry;
+	int i;
+
+	i = 0;
+	SLIST_FOREACH(entry, &gn->head, entries) {
+		printf("in loop for %d\n", i);
+		if (i == n) {
+			return entry;
+		}
+		i++;
+	}
+
+	return NULL;
+}
+
+static int
+puffboy_node_readdir(struct puffs_usermount *pu, puffs_cookie_t opc,
+		     struct dirent *dent, off_t *readoff, size_t *reslen,
+		     const struct puffs_cred *pcr, int *eofflag, off_t *cookies,
+		     size_t *ncookies)
+{
+	struct puffs_node *pn, *pn_nth;
+	struct gba_node *gn;
+
+	printf("in readdir\n");
+	pn = opc;
+
+	/* my understanding is that ncookies is always initialized to 0 */
+	*ncookies = 0;
+
+	/* dont perform for non directories */
+	if (pn->pn_va.va_type != VDIR) {
+		printf("in node_readdir pn is not a VDIR\n");
+		return ENOTDIR;
+	}
+
+again:
+	if (*readoff == DENT_DOT || *readoff == DENT_DOTDOT) {
+		printf("is DENT_DOT / DENT_DOTDOT\n");
+		puffs_gendotdent(&dent, pn->pn_va.va_fileid, (int)*readoff, reslen);
+		(*readoff)++;
+		PUFFS_STORE_DCOOKIE(cookies, ncookies, *readoff);
+		printf("finished DENT_DOT logic. running again\n");
+		goto again;
+	}
+
+	for (;;) {
+		printf("getting %dth entry\n", (int)DENT_ADJ(*readoff));
+		if (pn->pn_data == NULL) {
+			printf("PN_DATA IS NULL\n");
+		}
+		gn = get_nth_entry(pn->pn_data, (int)DENT_ADJ(*readoff));
+		if (!gn) {
+			*eofflag = 1;
+			break;
+		}
+
+		pn_nth = gn->pn;
+		if (!puffs_nextdent(&dent, gn->name, pn_nth->pn_va.va_fileid, (uint8_t)puffs_vtype2dt(pn_nth->pn_va.va_type), reslen)) {
+			break;
+		}
+
+		(*readoff)++;
+		PUFFS_STORE_DCOOKIE(cookies, ncookies, *readoff);
+	}
+
+	return 0;
+}
+
+static int
+puffboy_node_getattr(struct puffs_usermount *pu, puffs_cookie_t opc,
+		     struct vattr *vap, const struct puffs_cred *pcr)
+{
+	struct puffs_node *pn;
+	struct vattr pn_va;
+
+	printf("In getattr\n");
+
+	pn = opc;
+
+	if (pn == NULL) {
+		printf("getattr - pn is NULL\n");
+		return ESTALE;
+	}
+
+	pn_va = pn->pn_va;
+
+	vap->va_type = pn_va.va_type;
+	vap->va_mode = pn_va.va_mode;
+	vap->va_nlink = pn_va.va_nlink;
+	vap->va_uid = pn_va.va_uid;
+	vap->va_gid = pn_va.va_gid;
+	vap->va_fsid = pn_va.va_fsid;
+	vap->va_fileid = pn_va.va_fileid;
+	vap->va_size = pn_va.va_size;
+	vap->va_blocksize = pn_va.va_blocksize;
+	vap->va_gen = pn_va.va_gen;
+	vap->va_flags = pn_va.va_flags;
+	vap->va_rdev = pn_va.va_rdev;
+	vap->va_bytes = pn_va.va_bytes;
+	vap->va_filerev = pn_va.va_filerev;
+	vap->va_vaflags = pn_va.va_vaflags;
+	vap->va_spare = pn_va.va_spare;
+	vap->va_atime.tv_sec = pn_va.va_atime.tv_sec;
+	vap->va_atime.tv_nsec = pn_va.va_atime.tv_nsec;
+	vap->va_mtime.tv_sec = pn_va.va_mtime.tv_sec;
+	vap->va_mtime.tv_nsec = pn_va.va_mtime.tv_nsec;
+	vap->va_ctime.tv_sec = pn_va.va_ctime.tv_sec;
+	vap->va_ctime.tv_nsec = pn_va.va_ctime.tv_nsec;
+
+	return 0;
+}
+
 int
 main(int argc, char *argv[])
 {
@@ -124,10 +255,11 @@ main(int argc, char *argv[])
 	struct puffs_ops *pops;
 	struct gba_node root_node;
 
+	setprogname(argv[0]);
+
 	root_node.id = 1;
 	root_node.is_dir = 1;
-
-	setprogname(argv[0]);
+	SLIST_INIT(&root_node.head);
 
 	pflags = 0;
 	mntflags = 0;
@@ -145,17 +277,44 @@ main(int argc, char *argv[])
 	PUFFSOP_SETFSNOP(pops, sync);
 
 	PUFFSOP_SET(pops, puffboy, node, lookup);
+	PUFFSOP_SET(pops, puffboy, node, readdir);
+	PUFFSOP_SET(pops, puffboy, node, getattr);
+
+	/*
+	 * TODO next is to do readdir which should get me basic `ls`
+	 * there is an example in NetBSD-src/tests/fs/puffs/h_dtfs
+	 * and the helloworld one i did is also decent. i am at a point now
+	 * i think what i want to do is have every gba_node have a simple queue
+	 * as part of it?
+	 * and then i can iterate over each item in the queue somehow...
+	 */
 
 	pu = puffs_init(pops, _PATH_PUFFS, "puffboy", NULL, pflags);
 	if (pu == NULL) {
 		err(1, "puffs_init failed");
 	}
 
-	if (puffboy_domount(pu) != 0) {
+	/*
+	 * Basic readdir implementation. The root node has some hard coded
+	 * entries.
+	 * TODO - i need to set the pn attributes
+	 */
+	struct gba_node file_node;
+	file_node.id = 2;
+	file_node.is_dir = 0;
+	file_node.name = estrndup(TEST_FILE_NAME, strlen(TEST_FILE_NAME));
+	file_node.namelen = strlen(file_node.name);
+	file_node.pu = pu;
+	file_node.pn = puffs_pn_new(pu, &file_node);
+	file_node.pn->pn_va.va_type = VREG;
+	file_node.pn->pn_va.va_mode = 0755;
+	SLIST_INSERT_HEAD(&(root_node.head), &file_node, entries);
+
+	if (puffboy_domount(pu, &root_node) != 0) {
 		err(1, "puffboy_domount failed");
 	}
 
-	if (puffs_mount(pu, argv[1], mntflags, &root_node) == -1) {
+	if (puffs_mount(pu, argv[1], mntflags, puffs_getroot(pu)) == -1) {
 		err(1, "mount failed");
 	}
 
