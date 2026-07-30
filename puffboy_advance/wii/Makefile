@@ -2,6 +2,8 @@
 #
 PROG=	pba
 SRCS+=	main.c
+SRCS+=	fs/statvfs.c
+SRCS+=	node/lookup.c node/readdir.c
 
 CPPFLAGS+=	-D_KERNTYPES -g
 DPADD+=		${LIBPUFFS}
