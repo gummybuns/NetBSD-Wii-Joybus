@@ -69,6 +69,7 @@ main(int argc, char *argv[])
 
 	PUFFSOP_SET(pops, puffboy, node, lookup);
 	PUFFSOP_SET(pops, puffboy, node, readdir);
+	PUFFSOP_SET(pops, puffboy, node, pathconf);
 	PUFFSOP_SET(pops, puffs_genfs, node, getattr);
 	// TODO - need to implement pathconf to get ls -l to work
 

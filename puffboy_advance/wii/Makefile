@@ -3,7 +3,7 @@
 PROG=	pba
 SRCS+=	main.c pba_ops.c
 SRCS+=	fs/statvfs.c
-SRCS+=	node/lookup.c node/readdir.c
+SRCS+=	node/lookup.c node/readdir.c node/pathconf.c
 
 CPPFLAGS+=	-D_KERNTYPES -g
 DPADD+=		${LIBPUFFS}
