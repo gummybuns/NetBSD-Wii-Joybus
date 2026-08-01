@@ -13,4 +13,6 @@ struct gba_node {
 	SLIST_HEAD(, gba_node) head;
 };
 
+void puffboy_baseattrs(struct vattr *, enum vtype, ino_t);
+
 PUFFSOP_PROTOS(puffboy);

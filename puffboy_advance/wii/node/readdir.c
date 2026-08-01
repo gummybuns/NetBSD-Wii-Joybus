@@ -70,13 +70,15 @@ get_nth_entry(struct gba_node *gn, int n)
 
 	i = 0;
 	SLIST_FOREACH(entry, &gn->head, entries) {
-		printf("in loop for %d\n", i);
+		printf("looking for %d, currently %d\n", n, i);
+		printf("current entry has name %s\n", entry->name);
 		if (i == n) {
 			return entry;
 		}
 		i++;
 	}
 
+	printf("entry %d could not be found\n", n);
 	return NULL;
 }
 

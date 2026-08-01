@@ -11,6 +11,7 @@
 
 #include "pba.h"
 
+#define ROOT_NAME "root"
 #define TEST_FILE_NAME "hello.txt"
 
 /*
@@ -48,6 +49,7 @@ main(int argc, char *argv[])
 
 	root_node.id = 1;
 	root_node.is_dir = 1;
+	root_node.name = estrndup(ROOT_NAME, strlen(ROOT_NAME));
 	SLIST_INIT(&root_node.head);
 
 	pflags = 0;
@@ -68,6 +70,7 @@ main(int argc, char *argv[])
 	PUFFSOP_SET(pops, puffboy, node, lookup);
 	PUFFSOP_SET(pops, puffboy, node, readdir);
 	PUFFSOP_SET(pops, puffs_genfs, node, getattr);
+	// TODO - need to implement pathconf to get ls -l to work
 
 	pu = puffs_init(pops, _PATH_PUFFS, "puffboy", NULL, pflags);
 	if (pu == NULL) {
@@ -80,6 +83,7 @@ main(int argc, char *argv[])
 	 * TODO - i need to set the pn attributes
 	 */
 	struct gba_node file_node;
+	// TODO - change the 2 for a global counter
 	file_node.id = 2;
 	file_node.is_dir = 0;
 	file_node.name = estrndup(TEST_FILE_NAME, strlen(TEST_FILE_NAME));
@@ -88,6 +92,7 @@ main(int argc, char *argv[])
 	file_node.pn = puffs_pn_new(pu, &file_node);
 	file_node.pn->pn_va.va_type = VREG;
 	file_node.pn->pn_va.va_mode = 0755;
+	puffboy_baseattrs(&file_node.pn->pn_va, VREG, file_node.id);
 	SLIST_INSERT_HEAD(&(root_node.head), &file_node, entries);
 
 	if (puffboy_domount(pu, &root_node) != 0) {
