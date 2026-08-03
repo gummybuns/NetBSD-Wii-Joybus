@@ -1,3 +1,6 @@
+#ifndef _PBA_H_
+#define _PBA_H_
+
 #include <sys/queue.h>
 
 #include <puffs.h>
@@ -16,3 +19,4 @@ struct gba_node {
 void puffboy_baseattrs(struct vattr *, enum vtype, ino_t);
 
 PUFFSOP_PROTOS(puffboy);
+#endif

@@ -15,6 +15,28 @@
 #define TEST_FILE_NAME "hello.txt"
 
 /*
+ * GBA Communication
+ *
+ * I can only send 4 bytes over at a time
+ * But before I send the actual payload over I need to send a single uint32_t
+ * that tells the gameboy what type of command to receive.
+ *
+ * i think what we want is to have something like
+ *
+ * 1. Gameboy is ready to receive a command
+ * 2. Wii sends cmd request.
+ * 3. Wii waits for the cmd to echo back.
+ * 4. Gameboy receives the request
+ * 5. Gameboy mallocs space for the exact payload based on the type of request
+ * 6. Gameboy sends the exact request back
+ * 7. Gameboy sends the response
+ * 8. Wii sees the cmd echod back
+ * 9. Wii reads data back until nothing comes back
+ */
+
+
+
+/*
  * Looking at other examples the first thing you want to do is create the root
  * node.
  */
@@ -71,20 +93,21 @@ main(int argc, char *argv[])
 	PUFFSOP_SET(pops, puffboy, node, readdir);
 	PUFFSOP_SET(pops, puffboy, node, pathconf);
 	PUFFSOP_SET(pops, puffs_genfs, node, getattr);
-	// TODO - need to implement pathconf to get ls -l to work
 
 	pu = puffs_init(pops, _PATH_PUFFS, "puffboy", NULL, pflags);
 	if (pu == NULL) {
 		err(1, "puffs_init failed");
 	}
 
-	/*
-	 * Basic readdir implementation. The root node has some hard coded
-	 * entries.
-	 * TODO - i need to set the pn attributes
-	 */
 	struct gba_node file_node;
 	// TODO - change the 2 for a global counter
+	// i think at this point it is time to start working on the gba side
+	// of things. i think readdir and node lookup can be the exact same.
+	// what changes now is how the file_node(s) are generated. there should
+	// be some initial handshake before any mounting logic. at that point
+	// the gba should tell the program all of the file nodes that exist and
+	// their meta data. then any writes / deletes are written back to the
+	// gameboy, and all reads can be requested by some id
 	file_node.id = 2;
 	file_node.is_dir = 0;
 	file_node.name = estrndup(TEST_FILE_NAME, strlen(TEST_FILE_NAME));
