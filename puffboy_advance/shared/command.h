@@ -12,7 +12,7 @@ struct nth_entry_request {
 struct nth_entry_response {
 	unsigned char	exists;
 	uint32_t 	va_fileid;
-	uint32_t	va_type;
+	uint8_t		va_type;
 	char 		name[32];
 };
 #endif
