@@ -7,24 +7,28 @@
 
 #include <string.h>
 
+#define ENTRIES_MAX 20
+
 extern "C" {
 	#include <maxmod.h>
 	#include "soundbank.h"
 	#include "soundbank_bin.h"
 }
 
+/* taken from NetBSD-src/sys/sys/vnode.h */
+enum vtype      { VNON, VREG, VDIR, VBLK, VCHR, VLNK, VSOCK, VFIFO, VBAD };
+
 struct entry {
-	uint32_t	va_fileid;
-	uint32_t	va_type;
+	u32		va_fileid;
+	u8		va_type;
 	char		name[32];
 	struct entry	*next;
 	struct entry	*child;
-}
+};
 
 bool a = true, b = true, l = true;
 int ID = 1;
-struct entry *ENTRIES[20];
-
+struct entry *ENTRIES[ENTRIES_MAX];
 
 LinkCube* linkCube = new LinkCube();
 
@@ -37,18 +41,33 @@ void init() {
 }
 
 
+static struct entry *
+find_by_id(u32 id)
+{
+	int i;
+	struct entry *cur;
+	for (i = 0; i < ENTRIES_MAX; i++) {
+		cur = ENTRIES[i];
+		if (cur && cur->va_fileid == id) {
+			return cur;
+		}
+	}
+
+	return NULL;
+}
+
 static int
 handle_nth_entry_request()
 {
 	u32 recv;
-	int i, j;
-	u8 req_buf[WORD_CNT(struct nth_entry_request)];
-	u8 resp_buf[(WORD_CNT(struct nth_entry_response)];
+	int i;
+	u32 req_buf[WORD_CNT(struct nth_entry_request)];
+	u32 resp_buf[WORD_CNT(struct nth_entry_response)];
 	struct nth_entry_request req;
 	struct nth_entry_response resp;
 	struct entry *parent, *res;
 
-	linkCube->send(recv);
+	linkCube->send(CMD_NTH_ENTRY);
 	parent = NULL;
 	res = NULL;
 	resp.exists = 0;
@@ -68,7 +87,7 @@ handle_nth_entry_request()
 
 	i = 0;
 	res = parent->child;
-	while (res && i <= req.n) {
+	while (res && i <= (int)req.n) {
 		res = res->next;
 		i++;
 	}
@@ -77,7 +96,7 @@ send_response:
 	if (resp.exists) {
 		resp.va_fileid = res->va_fileid;
 		resp.va_type = res->va_type;
-		resp.name = res->name;
+		strcpy(resp.name, res->name);
 	}
 	memcpy(resp_buf, &resp, sizeof(struct nth_entry_response));
 	for (i = 0; i < WORD_CNT(struct nth_entry_response); i++) {
@@ -95,12 +114,13 @@ int main()
 	mmInitDefault( (mm_addr)soundbank_bin, 8 );
 
 	u32 recv;
-	int i;
 	struct entry root;
-	struct nth_entry_request ner;
 
+	for (int i = 0; i < ENTRIES_MAX; i++) {
+		ENTRIES[i] = NULL;
+	}
 	root.va_fileid = ID++;
-	root.va_type = VA_DIR;
+	root.va_type = VDIR;
 	root.next = NULL;
 	root.child = NULL;
 	ENTRIES[0] = &root;
