@@ -5,6 +5,14 @@
 
 #include <puffs.h>
 
+#define DELAY		50
+#define READY_TIMEOUT	100000
+#define MSG_TIMEOUT	5000
+
+struct pba_context {
+	int fd;		/* for gba ioctl */
+};
+
 struct gba_node {
 	uint32_t id;
 	unsigned char is_dir;
@@ -17,6 +25,9 @@ struct gba_node {
 };
 
 void puffboy_baseattrs(struct vattr *, enum vtype, ino_t);
+void wait_for(int, uint32_t, long, long);
+void wait_clear(int, long, long);
+
 
 PUFFSOP_PROTOS(puffboy);
 #endif

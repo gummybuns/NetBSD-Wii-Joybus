@@ -3,6 +3,13 @@
 
 #define CMD_NTH_ENTRY 0x0001
 #define WORD_CNT(n) ((sizeof(n)+3)/4)
+#define SEQ_NUM(n) ((n % 254) + 1)
+
+struct packet {
+	uint8_t seq;
+	uint8_t cmd;
+	uint16_t data;
+};
 
 struct nth_entry_request {
 	uint32_t	parent_fileid;
@@ -10,9 +17,9 @@ struct nth_entry_request {
 };
 
 struct nth_entry_response {
-	unsigned char	exists;
+	char		exists;
+	char		va_type;
 	uint32_t 	va_fileid;
-	uint8_t		va_type;
-	char 		name[32];
+	char 		name[31];
 };
 #endif

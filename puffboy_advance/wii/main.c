@@ -66,8 +66,15 @@ main(int argc, char *argv[])
 	struct puffs_usermount *pu;
 	struct puffs_ops *pops;
 	struct gba_node root_node;
+	struct pba_context ctx;
 
 	setprogname(argv[0]);
+
+	ctx.fd = open("/dev/gcport0", O_RDWR);
+	if (ctx.fd == -1) {
+		errx(1, "can't open gcport device");
+	}
+	wait_clear(ctx.fd, DELAY, READY_TIMEOUT);
 
 	root_node.id = 1;
 	root_node.is_dir = 1;
@@ -94,12 +101,11 @@ main(int argc, char *argv[])
 	PUFFSOP_SET(pops, puffboy, node, pathconf);
 	PUFFSOP_SET(pops, puffs_genfs, node, getattr);
 
-	pu = puffs_init(pops, _PATH_PUFFS, "puffboy", NULL, pflags);
+	pu = puffs_init(pops, _PATH_PUFFS, "puffboy", &ctx, pflags);
 	if (pu == NULL) {
 		err(1, "puffs_init failed");
 	}
 
-	struct gba_node file_node;
 	// TODO - change the 2 for a global counter
 	// i think at this point it is time to start working on the gba side
 	// of things. i think readdir and node lookup can be the exact same.
@@ -108,6 +114,8 @@ main(int argc, char *argv[])
 	// the gba should tell the program all of the file nodes that exist and
 	// their meta data. then any writes / deletes are written back to the
 	// gameboy, and all reads can be requested by some id
+	/*
+	struct gba_node file_node;
 	file_node.id = 2;
 	file_node.is_dir = 0;
 	file_node.name = estrndup(TEST_FILE_NAME, strlen(TEST_FILE_NAME));
@@ -118,6 +126,7 @@ main(int argc, char *argv[])
 	file_node.pn->pn_va.va_mode = 0755;
 	puffboy_baseattrs(&file_node.pn->pn_va, VREG, file_node.id);
 	SLIST_INSERT_HEAD(&(root_node.head), &file_node, entries);
+	*/
 
 	if (puffboy_domount(pu, &root_node) != 0) {
 		err(1, "puffboy_domount failed");

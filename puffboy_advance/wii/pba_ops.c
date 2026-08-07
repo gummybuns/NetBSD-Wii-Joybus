@@ -7,6 +7,7 @@
 #include <util.h>
 
 #include "pba.h"
+#include "../../wiishared/lib/gcport_ioctl.h"
 
 void
 puffboy_baseattrs(struct vattr *vap, enum vtype type, ino_t id)
@@ -38,4 +39,23 @@ puffboy_baseattrs(struct vattr *vap, enum vtype type, ino_t id)
 	vap->va_vaflags = 0;
 
 	vap->va_atime = vap->va_mtime = vap->va_ctime = vap->va_birthtime = ts;
+}
+
+void wait_for(int fd, uint32_t val, long delay, long timeout)
+{
+	uint32_t v, status;
+	long count = 0;
+	for (;;) {
+		v = gba_read(fd, &status, DELAY);
+		if (v == val) break;
+		if (count > timeout) {
+			errx(1, "gba failed to get ready\n");
+		}
+		count++;
+	}
+}
+void
+wait_clear(int fd, long delay, long timeout)
+{
+	wait_for(fd, 0, delay, timeout);
 }

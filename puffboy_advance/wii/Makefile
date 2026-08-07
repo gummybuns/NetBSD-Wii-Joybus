@@ -9,7 +9,7 @@ CPPFLAGS+=	-D_KERNTYPES -g
 DPADD+=		${LIBPUFFS}
 LDADD+=		-lpuffs -lc -lutil
 
-WARNS=	6
+WARNS=	4
 
 format:
 	clang-format -i ./*.c
