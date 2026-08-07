@@ -11,12 +11,6 @@ struct packet {
 	uint16_t data;
 };
 
-struct packet {
-	uint8_t seq;
-	uint8_t cmd;
-	uint16_t data;
-};
-
 struct nth_entry_request {
 	uint32_t	parent_fileid;
 	uint32_t	n;
