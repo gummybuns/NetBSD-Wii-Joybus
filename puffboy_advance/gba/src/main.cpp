@@ -29,16 +29,6 @@ struct entry {
 	struct entry	*child;
 };
 
-struct packet
-to_packet(uint32_t val)
-{
-	struct packet pk;	
-	pk.seq = (val >> 24) & 0xFF;
-	pk.cmd = (val >> 16) & 0xFF;
-	pk.data = val & 0xFFFF;
-	return pk;
-}
-
 uint32_t
 to_u32(struct packet pk)
 {
@@ -100,56 +90,24 @@ handle_nth_entry_request()
 	struct entry *parent, *res;
 	struct packet pk, pk2;
 
-	//linkCube->send(CMD_NTH_ENTRY);
 	parent = NULL;
 	res = NULL;
 	resp.exists = 0;
 
-	i = 0;
-	while (linkCube->canRead() && i < (int)WORD_CNT(struct nth_entry_request)*2) {
-		recv = linkCube->read();
-		snprintf(msg, sizeof(msg), "received: 0x%08X\n", recv);
-		tte_write(msg);
-		req_pkt[i] = recv;
-		i++;
-	}
-
-	i = 0;
-	j = 0;
-	while (i < WORD_CNT(struct nth_entry_request)) {
-		j = 2*i;
-		pk = to_packet(req_pkt[j]);
-		pk2 = to_packet(req_pkt[j+1]);
-		req_buf[i] = merge_packets(pk, pk2);
-		snprintf(msg, sizeof(msg), "in:0x%08X | 0x%08X - 0x%08X\n", pk.data, pk2.data, req_buf[i]);
-		tte_write(msg);
-		i++;
-	}
-	memcpy(&req, req_buf, sizeof(struct nth_entry_request));
-	req.parent_fileid = req.parent_fileid;
-	req.n = req.n;
+	receive_response(linkCube, &req, sizeof(struct nth_entry_request));
+	req.parent_fileid = ntohl(req.parent_fileid);
+	req.n = ntohl(req.n);
 	tte_write("==============\n");
 	snprintf(msg, sizeof(msg), "req.parent 0x%08X / req.n 0x%08x\n", req.parent_fileid, req.n);
 	tte_write(msg);
 	snprintf(msg, sizeof(msg), "req.parent %d / req.n %d\n", req.parent_fileid, req.n);
 	tte_write(msg);
 	tte_write("==============\n");
-	
-	if (req.parent_fileid != 1) {
-		//tte_write("PARENT FILEID IS NOT 1!!\n");
-		//tte_putc((char) req.parent_fileid);
-		//tte_write("\n");
-	} else {
-		//tte_write("PARENT FILEID IS 1!!!\n");
-	}
 
 	parent = find_by_id(req.parent_fileid);
 
 	if (!parent) {
-		//tte_write("PARENT NOT FOUND!\n");
 		goto send_response;	
-	} else {
-		//tte_write("PARENT IS FOUND!!!\n");
 	}
 
 	i = 0;
@@ -161,7 +119,6 @@ handle_nth_entry_request()
 send_response:
 	resp.exists = res != NULL;
 	if (res != NULL) {
-		//tte_write("setting the stuff correctly\n");
 		resp.exists = 1;
 		resp.va_fileid = res->va_fileid;
 		resp.va_type = res->va_type;
@@ -172,37 +129,16 @@ send_response:
 		tte_write(msg);
 	} else {
 		resp.exists = 0;
-		resp.va_fileid = 0;
+		resp.va_fileid = 999;
 		resp.va_type = 0;
 	}
-	memcpy(resp_buf, &resp, sizeof(struct nth_entry_response));
-	i = 0;
-	j = 0;
-	while (i < WORD_CNT(struct nth_entry_response)) {
-		j = 2 * i;
-		pk.seq = 6;
-		pk.cmd = 7;
-		pk.data = (u16)(resp_buf[i] & 0xFFFF);
-		resp_pkt[j] = to_u32(pk);
-		//snprintf(msg, sizeof(msg), "j: 0x%08x\n", resp_pkt[j]);
-		//tte_write(msg);
-		pk.data = (u16)(resp_buf[i] >> 16);
-		resp_pkt[j+1] = to_u32(pk);
-		//snprintf(msg, sizeof(msg), "j+1: 0x%08x\n", resp_pkt[j+1]);
-		//tte_write(msg);
-		i++;
-	}
-	for (i = 0; i < (int)WORD_CNT(struct nth_entry_response)*2; i++) {
-		snprintf(msg, sizeof(msg), "sending 0x%08X\n", resp_pkt[i]);
-		tte_write(msg);
-		linkCube->send(resp_pkt[i]);
-	}
-
+	send_request(linkCube, (struct nth_entry_response *) &resp, sizeof(struct nth_entry_response));
 	return 0;
 }
 
 static void mytest()
 {
+	return;
 	u32 recv;
 	int i,j;
 	u32 req_pkt[WORD_CNT(struct nth_entry_request) * 2];
@@ -307,11 +243,11 @@ int main()
 	root.next = NULL;
 	root.child = &test;
 
-	test.va_fileid = 123456789;
+	test.va_fileid = ID++;
 	test.va_type = VREG;
 	test.next = NULL;
 	test.child = NULL;
-	snprintf(test.name, sizeof(test.name), "abcdefg");
+	snprintf(test.name, sizeof(test.name), "hello.txt");
 	ENTRIES[0] = &root;
 	ENTRIES[1] = &test;
 
@@ -328,7 +264,8 @@ int main()
 	mytest();
 	while (true) {
 		while (linkCube->canRead()) {
-			recv = linkCube->read();
+			recv = ntohl(linkCube->read());
+			print_u32(recv);
 			switch (recv) {
 			case CMD_NTH_ENTRY:
 				tte_write("get_nth_entry\n");

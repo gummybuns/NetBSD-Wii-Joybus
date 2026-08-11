@@ -34,7 +34,7 @@ udelay(unsigned usec)
 	do {
 		clock_gettime(CLOCK_MONOTONIC, &now);
 	} while ((now.tv_sec - start.tv_sec) * 1000000000L + 
-		    (now.tv_nsec - start.tv_nsec) < (1000 * 50));
+		    (now.tv_nsec - start.tv_nsec) < (1000 * usec));
 }
 
 static inline uint32_t
@@ -76,6 +76,7 @@ gba_read(int fd, uint32_t *status, long delay)
 	payload.insize = 5;
 	payload.outsize = 1;
 	payload.status = status;
+	udelay(delay);
 	err = ioctl(fd, SI_SEND, &payload);
 	if (err != 0) {
 		errx(1, "cmd_reset failed: %d", err);
