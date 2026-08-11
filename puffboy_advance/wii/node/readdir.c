@@ -45,11 +45,9 @@ again:
 	}
 
 	for (;;) {
-		printf("getting %dth entry\n", (int)DENT_ADJ(*readoff));
 		if (pn->pn_data == NULL) {
 			printf("PN_DATA IS NULL\n");
 		}
-		printf("CALLING GET_NTH_ENTRY\n");
 		gn = pn->pn_data;
 		req.parent_fileid = gn->id;
 		req.n = (int)DENT_ADJ(*readoff);

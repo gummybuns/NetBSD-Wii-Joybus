@@ -79,12 +79,6 @@ handle_nth_entry_request()
 {
 	u32 recv;
 	int i,j;
-	u32 req_pkt[WORD_CNT(struct nth_entry_request) * 2];
-	u32 req_buf[WORD_CNT(struct nth_entry_request)];
-	u32 resp_buf[WORD_CNT(struct nth_entry_response)];
-	u32 resp_pkt[WORD_CNT(struct nth_entry_response) * 2];
-	u32 in, in2;
-	char msg[100];
 	struct nth_entry_request req;
 	struct nth_entry_response resp;
 	struct entry *parent, *res;
@@ -97,12 +91,6 @@ handle_nth_entry_request()
 	receive_response(linkCube, &req, sizeof(struct nth_entry_request));
 	req.parent_fileid = ntohl(req.parent_fileid);
 	req.n = ntohl(req.n);
-	tte_write("==============\n");
-	snprintf(msg, sizeof(msg), "req.parent 0x%08X / req.n 0x%08x\n", req.parent_fileid, req.n);
-	tte_write(msg);
-	snprintf(msg, sizeof(msg), "req.parent %d / req.n %d\n", req.parent_fileid, req.n);
-	tte_write(msg);
-	tte_write("==============\n");
 
 	parent = find_by_id(req.parent_fileid);
 
@@ -123,13 +111,9 @@ send_response:
 		resp.va_fileid = res->va_fileid;
 		resp.va_type = res->va_type;
 		strcpy(resp.name, res->name);
-		snprintf(msg, sizeof(msg), "va_type: %d\n", resp.va_type);
-		tte_write(msg);
-		snprintf(msg, sizeof(msg), "name: %s\n", resp.name);
-		tte_write(msg);
 	} else {
 		resp.exists = 0;
-		resp.va_fileid = 999;
+		resp.va_fileid = 0;
 		resp.va_type = 0;
 	}
 	send_request(linkCube, (struct nth_entry_response *) &resp, sizeof(struct nth_entry_response));
@@ -265,10 +249,8 @@ int main()
 	while (true) {
 		while (linkCube->canRead()) {
 			recv = ntohl(linkCube->read());
-			print_u32(recv);
 			switch (recv) {
 			case CMD_NTH_ENTRY:
-				tte_write("get_nth_entry\n");
 				handle_nth_entry_request();
 				mmEffectEx(&ding);
 				break;
