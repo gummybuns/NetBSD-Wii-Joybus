@@ -8,6 +8,7 @@
 #include <string.h>
 
 #define ENTRIES_MAX 20
+#define BLOCKSIZE 1024
 
 extern "C" {
 	#include <maxmod.h>
@@ -22,9 +23,23 @@ uint32_t merge_packets(struct packet, struct packet);
 enum vtype      { VNON, VREG, VDIR, VBLK, VCHR, VLNK, VSOCK, VFIFO, VBAD };
 
 struct entry {
-	u32		va_fileid;
-	u8		va_type;
-	char		name[31];
+	u32		va_type; /* i think this is supposed to be u32 as well */
+	u32		va_mode;
+	u32		va_nlink;
+	u32		va_uid;
+	u32		va_gid;
+	u64		va_fsid;
+	u32		va_fileid; /* it is normally u64 but i chose u32 */
+	u64		va_size;
+	u32		va_blocksize;
+	u64		va_gen;
+	u64		va_flags;
+	u64		va_rdev;
+	u64		va_bytes;
+	u64		va_filerev;
+	u64		va_vaflags;
+	u64		va_spare;
+	char		name[32];
 	struct entry	*next;
 	struct entry	*child;
 };
@@ -72,6 +87,77 @@ find_by_id(u32 id)
 	}
 
 	return NULL;
+}
+
+static int
+handle_lookup_request()
+{
+	struct lookup_req req;
+	struct lookup_resp resp;
+	struct entry *parent, *ent, *match;
+
+	receive_response(linkCube, &req, sizeof(struct lookup_req));
+	req.parent_fileid = ntohl(req.parent_fileid);
+	match = NULL;
+
+	parent = find_by_id(req.parent_fileid);
+	if (!parent || !parent->child) {
+		goto send_response;
+	}
+
+	ent = parent->child;
+	do {
+		if (strcmp(ent->name, req.name) == 0) {
+			match = ent;
+			break;
+		}	
+	} while (ent->next);
+send_response:
+	resp.exists = match != NULL;
+	if (match) {
+		resp.exists = 1;
+		resp.va_fileid = match->va_fileid;
+		resp.va_type = match->va_type;
+		resp.va_size = match->va_size;
+		resp.va_rdev = match->va_rdev;
+	}
+	send_request(linkCube, &resp, sizeof(struct lookup_resp));
+	return 0;
+}
+
+
+static int
+handle_getattr_request()
+{
+	struct req_getattr req;
+	struct resp_getattr resp;
+	struct entry *ent;
+
+	receive_response(linkCube, &req, sizeof(struct req_getattr));
+	req.fileid = ntohl(req.fileid);
+
+	ent = find_by_id(req.fileid);
+
+	resp.exists = ent != NULL;
+	if (resp.exists) {
+		resp.va_type = ent->va_type;
+		resp.va_mode = ent->va_mode;
+		resp.va_nlink = ent->va_nlink;
+		resp.va_uid = ent->va_uid;
+		resp.va_gid = ent->va_gid;
+		resp.va_gen = ent->va_gen;
+		resp.va_fsid = ent->va_fsid;
+		resp.va_fileid = ent->va_fileid;
+		resp.va_size = ent->va_size;
+		resp.va_flags = ent->va_flags;
+		resp.va_rdev = ent->va_rdev;
+		resp.va_bytes = ent->va_bytes;
+		resp.va_filerev = ent->va_filerev;
+		resp.va_vaflags = ent->va_vaflags;
+		resp.va_spare = ent->va_spare;
+	}
+	send_request(linkCube, &resp, sizeof(struct resp_getattr));
+	return 0;
 }
 
 static int
@@ -209,6 +295,58 @@ static void mytest()
 	*/
 }
 
+static void
+entry_init(struct entry *ent, enum vtype type)
+{
+	int i;
+
+	ent->va_fileid = ID++;
+	ent->va_type = type;
+	ent->next = NULL;
+	ent->child = NULL;
+	if (type == VDIR) {
+		ent->va_mode = 0777;
+		ent->va_nlink = 1; /* n + 1 after adding dent */
+
+	} else {
+		ent->va_mode = 0666;
+		ent->va_nlink = 0; /* n + 1 */
+	}
+	ent->va_uid = 0;
+	ent->va_gid = 0;
+	ent->va_size = 0;
+	ent->va_blocksize = BLOCKSIZE;
+	ent->va_gen = (u64)rand();
+	ent->va_rdev = 0;
+	ent->va_bytes = 0;
+	ent->va_filerev = 1;
+	ent->va_vaflags = 0;
+
+	for (i = 0; i < ENTRIES_MAX; i++) {
+		if (!ENTRIES[i]) {
+			ENTRIES[i] = ent;
+			break;
+		}
+	}
+}
+
+static void
+entry_append(struct entry *parent, struct entry *ent)
+{
+	struct entry *n;
+
+	if (parent->child == NULL) {
+		parent->child = ent;
+		return;
+	}
+
+	n = parent->child;
+	while (n->next) {
+		n = n->next;
+	}
+	n->next = ent;
+}
+
 int main()
 {
 	init();
@@ -222,19 +360,11 @@ int main()
 	for (int i = 0; i < ENTRIES_MAX; i++) {
 		ENTRIES[i] = NULL;
 	}
-	root.va_fileid = ID++;
-	root.va_type = VDIR;
-	root.next = NULL;
-	root.child = &test;
-
-	test.va_fileid = ID++;
-	test.va_type = VREG;
-	test.next = NULL;
-	test.child = NULL;
+	entry_init(&root, VDIR);
+	
+	entry_init(&test, VREG);
+	entry_append(&root, &test);
 	snprintf(test.name, sizeof(test.name), "hello.txt");
-	ENTRIES[0] = &root;
-	ENTRIES[1] = &test;
-
 
 	mm_sound_effect ding {
 		{ SFX_DING },
@@ -252,6 +382,14 @@ int main()
 			switch (recv) {
 			case CMD_NTH_ENTRY:
 				handle_nth_entry_request();
+				mmEffectEx(&ding);
+				break;
+			case CMD_GETATTR:
+				handle_getattr_request();
+				mmEffectEx(&ding);
+				break;
+			case CMD_LOOKUP:
+				handle_lookup_request();
 				mmEffectEx(&ding);
 				break;
 			default:

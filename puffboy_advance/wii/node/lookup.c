@@ -5,24 +5,22 @@
 #include <errno.h>
 
 #include "../pba.h"
+#include "../../shared/command.h"
 
-static struct gba_node * get_by_name(struct gba_node *, char *);
+static void gba_lookup(int, struct lookup_req *, struct lookup_resp *);
 
-/*
- * opc is the cookie that references the _directory_ not the node we actually
- * want to find. so i need to revisit what pn_nodewalk actually does. there
- * is probably a better way to do it but i can just strcmp i guess since every
- * entry in a directory has a unique name
- */
 int
 puffboy_node_lookup(struct puffs_usermount *pu, puffs_cookie_t opc,
 		    struct puffs_newinfo *pni,
 		    const struct puffs_cn *pcn)
 {
-	struct puffs_node *pn;
-	struct gba_node *dir_gn, *entry;
+	struct pba_context *ctx;
+	struct lookup_req req;
+	struct lookup_resp resp;
 
-	dir_gn = ((struct puffs_node *)opc)->pn_data;
+	ctx = puffs_getspecific(pu);
+	req.parent_fileid = cookie_to_fileid(opc);
+	resp.exists = 0;
 
 	printf("in node_lookup for %s\n", pcn->pcn_name);
 
@@ -33,33 +31,35 @@ puffboy_node_lookup(struct puffs_usermount *pu, puffs_cookie_t opc,
 		return ENOENT;
 	}
 
-	if ((entry = get_by_name(dir_gn, pcn->pcn_name)) == NULL) {
+	memcpy(req.name, pcn->pcn_name, sizeof(req.name));
+	gba_lookup(ctx->fd, &req, &resp);
+	if (!resp.exists) {
 		printf("node_lookup is NULL\n");
 		return ESTALE;
 	}
 
 	printf("node found!\n");
-	pn = entry->pn;
-	printf("fileid %ld\n", (long int)pn->pn_va.va_fileid);
-	printf("is VREG (%d)? %d\n", pn->pn_va.va_type, pn->pn_va.va_type == VREG);
-	puffs_newinfo_setcookie(pni, pn);
-	puffs_newinfo_setvtype(pni, pn->pn_va.va_type);
-	puffs_newinfo_setsize(pni, (voff_t)pn->pn_va.va_size);
-	puffs_newinfo_setrdev(pni, pn->pn_va.va_rdev);
+	puffs_newinfo_setcookie(pni, fileid_to_cookie(resp.va_fileid));
+	puffs_newinfo_setvtype(pni, resp.va_type);
+	puffs_newinfo_setsize(pni, (voff_t)resp.va_size);
+	puffs_newinfo_setrdev(pni, resp.va_rdev);
   	return 0;
 }
 
-static struct gba_node *
-get_by_name(struct gba_node *gn, char *name)
+static void
+gba_lookup(int fd, struct lookup_req *req, struct lookup_resp *resp)
 {
-	struct gba_node *entry;
+	struct joybus_ctx ctx;
 
-	SLIST_FOREACH(entry, &gn->head, entries) {
-		printf("looking for %s, currently %s\n", name, entry->name);
-		if (strcmp(name, entry->name) == 0) {
-			return entry;
-		}
-	}
+	ctx.fd = fd;
+	ctx.delay = DELAY;
 
-	return NULL;
+	wait_clear(fd, DELAY, MSG_TIMEOUT);
+	gba_write(ctx.fd, htonl(CMD_LOOKUP), &ctx.status, ctx.delay);
+	send_request(&ctx, req, sizeof(struct lookup_req));
+	receive_response(&ctx, resp, sizeof(struct lookup_resp));
+
+	resp->exists = bswap32(resp->exists);
+	resp->va_type = bswap32(resp->va_type);
+	resp->va_fileid = bswap32(resp->va_fileid);
 }

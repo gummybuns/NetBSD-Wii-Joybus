@@ -9,8 +9,15 @@
 #define READY_TIMEOUT	100000
 #define MSG_TIMEOUT	5000
 
+struct entry {
+	uint32_t id;
+	struct puffs_node *pn;
+	SLIST_ENTRY(entry) entries;
+};
+
 struct pba_context {
 	int fd;		/* for gba ioctl */
+	SLIST_HEAD(, entry) head;
 };
 
 struct gba_node {
@@ -24,6 +31,9 @@ struct gba_node {
 	SLIST_HEAD(, gba_node) head;
 };
 
+struct puffs_node *pba_cmap(struct puffs_usermount *, puffs_cookie_t);
+puffs_cookie_t fileid_to_cookie(uint32_t);
+uint32_t cookie_to_fileid(puffs_cookie_t);
 void puffboy_baseattrs(struct vattr *, enum vtype, ino_t);
 void wait_for(int, uint32_t, long, long);
 void wait_clear(int, long, long);

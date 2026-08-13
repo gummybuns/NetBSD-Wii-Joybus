@@ -15,7 +15,10 @@
 #ifndef _COMMAND_H
 #define _COMMAND_H
 
-#define CMD_NTH_ENTRY 0x0001
+#define CMD_NTH_ENTRY	0x0001
+#define CMD_BY_NAME	0x0002
+#define CMD_LOOKUP	0x0012
+#define CMD_GETATTR	0x0013
 #define WORD_CNT(n) ((sizeof(n)+3)/4)
 #define SEQ_NUM(n) ((n % 254) + 1)
 
@@ -31,10 +34,47 @@ struct nth_entry_request {
 };
 
 struct nth_entry_response {
-	uint32_t		exists;
-	uint32_t		va_type;
-	uint32_t 		va_fileid;
-	char 			name[32];
+	uint32_t	exists;
+	uint32_t	va_type;
+	uint32_t 	va_fileid;
+	char 		name[32];
+};
+
+struct lookup_req {
+	uint32_t	parent_fileid;
+	char		name[32];
+};
+
+struct lookup_resp {
+	uint32_t	exists;
+	uint32_t	va_fileid;
+	uint32_t	va_type;
+	uint64_t	va_size;
+	uint64_t	va_rdev;
+};
+
+struct req_getattr {
+	uint32_t	fileid;
+};
+
+struct resp_getattr {
+	uint32_t	exists;
+	uint32_t	va_type;
+	uint32_t	va_mode;
+	uint32_t	va_nlink;
+	uint32_t	va_uid;
+	uint32_t	va_gid;
+	uint64_t	va_gen;
+	uint64_t	va_fsid;
+	uint32_t	va_fileid;
+	uint64_t	va_size;
+	uint32_t	va_blocksize;
+	uint64_t	va_flags;
+	uint64_t	va_rdev;
+	uint64_t	va_bytes;
+	uint64_t	va_filerev;
+	uint64_t	va_vaflags;
+	uint64_t	va_spare;
 };
 
 #if defined(__powerpc__)

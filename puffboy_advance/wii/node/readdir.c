@@ -1,5 +1,3 @@
-#include <sys/queue.h>
-
 #include <puffs.h>
 #include <stdio.h>
 #include <errno.h>
@@ -16,40 +14,42 @@ puffboy_node_readdir(struct puffs_usermount *pu, puffs_cookie_t opc,
 		     const struct puffs_cred *pcr, int *eofflag, off_t *cookies,
 		     size_t *ncookies)
 {
-	struct puffs_node *pn;
 	struct pba_context *ctx;
-	struct gba_node *gn;
 	struct nth_entry_request req;
 	struct nth_entry_response resp;
+	uint32_t id;
 
 	printf("in readdir\n");
 	ctx = puffs_getspecific(pu);
-	pn = opc;
+	id = cookie_to_fileid(opc);
+	printf("id is %d\n", id);
 	resp.exists = 0;
 
 	/* my understanding is that ncookies is always initialized to 0 */
 	*ncookies = 0;
 
 	/* dont perform for non directories */
+	/* TODO i _shouldnt_ but now my cookie is an id. so to a full call
+	 * will skip this check for now
+	 */
+	/*
 	if (pn->pn_va.va_type != VDIR) {
 		printf("in node_readdir pn is not a VDIR\n");
 		return ENOTDIR;
 	}
+	*/
 
 again:
 	if (*readoff == DENT_DOT || *readoff == DENT_DOTDOT) {
-		puffs_gendotdent(&dent, pn->pn_va.va_fileid, (int)*readoff, reslen);
+		// TODO - using 1 but should make a constant
+		puffs_gendotdent(&dent, 1, (int)*readoff, reslen);
 		(*readoff)++;
 		PUFFS_STORE_DCOOKIE(cookies, ncookies, *readoff);
 		goto again;
 	}
 
 	for (;;) {
-		if (pn->pn_data == NULL) {
-			printf("PN_DATA IS NULL\n");
-		}
-		gn = pn->pn_data;
-		req.parent_fileid = gn->id;
+		req.parent_fileid = id;
 		req.n = (int)DENT_ADJ(*readoff);
 		get_nth_entry(ctx->fd, &req, &resp);
 		if (!resp.exists) {

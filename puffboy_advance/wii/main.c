@@ -44,17 +44,24 @@ static int
 puffboy_domount(struct puffs_usermount *pu, struct gba_node *gn)
 {
 	struct puffs_node *root;
+	struct entry *ent;
+	struct pba_context *ctx;
 	printf("in domount\n");
 
+	ctx = puffs_getspecific(pu);
 	root = puffs_pn_new(pu, gn);
 	root->pn_va.va_type = VDIR;
 	root->pn_va.va_mode = 0755;
 	if (!root) {
 		err(1, "failed to create root node");
 	}
+	ent = malloc(sizeof(struct entry));
+	ent->pn = root;
+	ent->id = 1;
 
 	gn->pn = root;
 	puffs_setroot(pu, root);
+	SLIST_INSERT_HEAD(&(ctx->head), ent, entries);
 	return 0;
 }
 
@@ -74,6 +81,7 @@ main(int argc, char *argv[])
 	if (ctx.fd == -1) {
 		errx(1, "can't open gcport device");
 	}
+	SLIST_INIT(&ctx.head);
 	wait_clear(ctx.fd, DELAY, READY_TIMEOUT);
 
 	root_node.id = 1;
@@ -99,9 +107,10 @@ main(int argc, char *argv[])
 	PUFFSOP_SET(pops, puffboy, node, lookup);
 	PUFFSOP_SET(pops, puffboy, node, readdir);
 	PUFFSOP_SET(pops, puffboy, node, pathconf);
-	PUFFSOP_SET(pops, puffs_genfs, node, getattr);
+	PUFFSOP_SET(pops, puffboy, node, getattr);
 
 	pu = puffs_init(pops, _PATH_PUFFS, "puffboy", &ctx, pflags);
+	puffs_set_cmap(pu, pba_cmap); /* THIS IS IMPORTANT */
 	if (pu == NULL) {
 		err(1, "puffs_init failed");
 	}
@@ -132,7 +141,8 @@ main(int argc, char *argv[])
 		err(1, "puffboy_domount failed");
 	}
 
-	if (puffs_mount(pu, argv[1], mntflags, puffs_getroot(pu)) == -1) {
+
+	if (puffs_mount(pu, argv[1], mntflags, fileid_to_cookie(1)) == -1) {
 		err(1, "mount failed");
 	}
 
