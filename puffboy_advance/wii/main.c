@@ -78,6 +78,7 @@ main(int argc, char *argv[])
 	setprogname(argv[0]);
 
 	ctx.fd = open("/dev/gcport0", O_RDWR);
+	ctx.delay = DELAY;
 	if (ctx.fd == -1) {
 		errx(1, "can't open gcport device");
 	}

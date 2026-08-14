@@ -78,13 +78,8 @@ struct getattr_resp {
 
 #if defined(__powerpc__)
 	#include <arpa/inet.h>
+	#include "../wii/pba.h"
 	#include "../../wiishared/lib/gcport_ioctl.h"
-
-	struct joybus_ctx {
-		int fd;
-		uint32_t status;
-		long delay;
-	};
 #else
 	#include <cstring>
 	#define htonl(n) __builtin_bswap32(n)
@@ -131,7 +126,7 @@ send_request(void *ctx, void *req, size_t sz)
 		pk.data = ((uint16_t *)buf)[i];
 		memcpy(&out, &pk, sizeof(uint32_t));
 #if defined(__powerpc__)
-		struct joybus_ctx *jbctx = ctx;
+		struct pba_context *jbctx = ctx;
 		gba_write(jbctx->fd, out, &jbctx->status, jbctx->delay);
 # else
 		((LinkCube *)ctx)->send(out);
@@ -152,7 +147,7 @@ receive_response(void *ctx, void *resp, size_t sz)
 	i = 0;
 	while (i < sz / 2) {
 #if defined(__powerpc__)
-		struct joybus_ctx *jbctx = ctx;
+		struct pba_context *jbctx = ctx;
 		recv = ntohl(gba_read(jbctx->fd, &jbctx->status, 50));
 # else
 		LinkCube *linkCube = (LinkCube *)ctx;

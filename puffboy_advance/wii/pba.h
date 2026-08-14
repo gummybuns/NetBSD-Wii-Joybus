@@ -16,7 +16,9 @@ struct entry {
 };
 
 struct pba_context {
-	int fd;		/* for gba ioctl */
+	int fd;			/* for gba ioctl */
+	uint32_t status;	/* for gba ioctl */
+	long delay;		/* for gba ioctl */
 	SLIST_HEAD(, entry) head;
 };
 

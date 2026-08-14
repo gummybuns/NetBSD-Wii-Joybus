@@ -6,7 +6,8 @@
 #include "../../shared/command.h"
 #include "../../../wiishared/lib/gcport_ioctl.h"
 
-static void gba_getattr(int, struct getattr_req *, struct getattr_resp *);
+static void gba_getattr(struct pba_context *, struct getattr_req *,
+		        struct getattr_resp *);
 
 int
 puffboy_node_getattr(struct puffs_usermount *pu, puffs_cookie_t opc,
@@ -21,7 +22,7 @@ puffboy_node_getattr(struct puffs_usermount *pu, puffs_cookie_t opc,
 	req.fileid = cookie_to_fileid(opc);
 	resp.exists = 0;
 
-	gba_getattr(ctx->fd, &req, &resp);
+	gba_getattr(ctx, &req, &resp);
 	if (!resp.exists) {
 		printf("cant be found\n");
 		return ESTALE;
@@ -46,16 +47,12 @@ puffboy_node_getattr(struct puffs_usermount *pu, puffs_cookie_t opc,
 }
 
 static void
-gba_getattr(int fd, struct getattr_req *req, struct getattr_resp *resp)
+gba_getattr(struct pba_context *ctx, struct getattr_req *req, struct getattr_resp *resp)
 {
-	struct joybus_ctx ctx;
-	ctx.fd = fd;
-	ctx.delay = DELAY;
-
-	wait_clear(fd, DELAY, MSG_TIMEOUT);
-	gba_write(ctx.fd, htonl(CMD_GETATTR), &ctx.status, ctx.delay);
-	send_request(&ctx, req, sizeof(struct getattr_req));
-	receive_response(&ctx, resp, sizeof(struct getattr_resp));
+	wait_clear(ctx->fd, DELAY, MSG_TIMEOUT);
+	gba_write(ctx->fd, htonl(CMD_GETATTR), &ctx->status, ctx->delay);
+	send_request(ctx, req, sizeof(struct getattr_req));
+	receive_response(ctx, resp, sizeof(struct getattr_resp));
 
 	resp->exists = bswap32(resp->exists);
 	resp->va_type = bswap32(resp->va_type);

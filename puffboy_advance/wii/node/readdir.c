@@ -6,7 +6,8 @@
 #include "../../shared/command.h"
 #include "../../../wiishared/lib/gcport_ioctl.h"
 
-static void gba_readdir(int, struct readdir_req *, struct readdir_resp *);
+static void gba_readdir(struct pba_context *, struct readdir_req *,
+		        struct readdir_resp *);
 
 int
 puffboy_node_readdir(struct puffs_usermount *pu, puffs_cookie_t opc,
@@ -39,7 +40,7 @@ again:
 	for (;;) {
 		req.parent_fileid = id;
 		req.n = (int)DENT_ADJ(*readoff);
-		gba_readdir(ctx->fd, &req, &resp);
+		gba_readdir(ctx, &req, &resp);
 		if (!resp.exists) {
 			*eofflag = 1;
 			break;
@@ -56,17 +57,13 @@ again:
 }
 
 static void
-gba_readdir(int fd, struct readdir_req *req, struct readdir_resp *resp)
+gba_readdir(struct pba_context *ctx, struct readdir_req *req,
+	    struct readdir_resp *resp)
 {
-	struct joybus_ctx ctx;
-
-	ctx.fd = fd;
-	ctx.delay = DELAY;
-
-	wait_clear(fd, DELAY, MSG_TIMEOUT);
-	gba_write(ctx.fd, htonl(CMD_READDIR), &ctx.status, ctx.delay);
-	send_request(&ctx, req, sizeof(struct readdir_req));
-	receive_response(&ctx, resp, sizeof(struct readdir_resp));
+	wait_clear(ctx->fd, DELAY, MSG_TIMEOUT);
+	gba_write(ctx->fd, htonl(CMD_READDIR), &ctx->status, ctx->delay);
+	send_request(ctx, req, sizeof(struct readdir_req));
+	receive_response(ctx, resp, sizeof(struct readdir_resp));
 
 	resp->exists = bswap32(resp->exists);
 	resp->va_fileid = bswap32(resp->va_fileid);

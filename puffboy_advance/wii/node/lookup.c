@@ -7,7 +7,8 @@
 #include "../pba.h"
 #include "../../shared/command.h"
 
-static void gba_lookup(int, struct lookup_req *, struct lookup_resp *);
+static void gba_lookup(struct pba_context *, struct lookup_req *,
+		       struct lookup_resp *);
 
 int
 puffboy_node_lookup(struct puffs_usermount *pu, puffs_cookie_t opc,
@@ -32,7 +33,7 @@ puffboy_node_lookup(struct puffs_usermount *pu, puffs_cookie_t opc,
 	}
 
 	memcpy(req.name, pcn->pcn_name, sizeof(req.name));
-	gba_lookup(ctx->fd, &req, &resp);
+	gba_lookup(ctx, &req, &resp);
 	if (!resp.exists) {
 		printf("node_lookup is NULL\n");
 		return ESTALE;
@@ -47,17 +48,13 @@ puffboy_node_lookup(struct puffs_usermount *pu, puffs_cookie_t opc,
 }
 
 static void
-gba_lookup(int fd, struct lookup_req *req, struct lookup_resp *resp)
+gba_lookup(struct pba_context *ctx, struct lookup_req *req,
+	   struct lookup_resp *resp)
 {
-	struct joybus_ctx ctx;
-
-	ctx.fd = fd;
-	ctx.delay = DELAY;
-
-	wait_clear(fd, DELAY, MSG_TIMEOUT);
-	gba_write(ctx.fd, htonl(CMD_LOOKUP), &ctx.status, ctx.delay);
-	send_request(&ctx, req, sizeof(struct lookup_req));
-	receive_response(&ctx, resp, sizeof(struct lookup_resp));
+	wait_clear(ctx->fd, DELAY, MSG_TIMEOUT);
+	gba_write(ctx->fd, htonl(CMD_LOOKUP), &ctx->status, ctx->delay);
+	send_request(ctx, req, sizeof(struct lookup_req));
+	receive_response(ctx, resp, sizeof(struct lookup_resp));
 
 	resp->exists = bswap32(resp->exists);
 	resp->va_type = bswap32(resp->va_type);
