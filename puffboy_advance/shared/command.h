@@ -15,8 +15,7 @@
 #ifndef _COMMAND_H
 #define _COMMAND_H
 
-#define CMD_NTH_ENTRY	0x0001
-#define CMD_BY_NAME	0x0002
+#define CMD_READDIR	0x0011
 #define CMD_LOOKUP	0x0012
 #define CMD_GETATTR	0x0013
 #define WORD_CNT(n) ((sizeof(n)+3)/4)
@@ -28,12 +27,12 @@ struct packet {
 	uint16_t data;
 };
 
-struct nth_entry_request {
+struct readdir_req {
 	uint32_t	parent_fileid;
 	uint32_t	n;
 };
 
-struct nth_entry_response {
+struct readdir_resp {
 	uint32_t	exists;
 	uint32_t	va_type;
 	uint32_t 	va_fileid;
@@ -53,11 +52,11 @@ struct lookup_resp {
 	uint64_t	va_rdev;
 };
 
-struct req_getattr {
+struct getattr_req {
 	uint32_t	fileid;
 };
 
-struct resp_getattr {
+struct getattr_resp {
 	uint32_t	exists;
 	uint32_t	va_type;
 	uint32_t	va_mode;

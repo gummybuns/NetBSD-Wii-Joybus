@@ -6,15 +6,15 @@
 #include "../../shared/command.h"
 #include "../../../wiishared/lib/gcport_ioctl.h"
 
-static void gba_getattr(int, struct req_getattr *, struct resp_getattr *);
+static void gba_getattr(int, struct getattr_req *, struct getattr_resp *);
 
 int
 puffboy_node_getattr(struct puffs_usermount *pu, puffs_cookie_t opc,
 		     struct vattr *vap, const struct puffs_cred *pcr)
 {
 	struct pba_context *ctx;
-	struct req_getattr req;
-	struct resp_getattr resp;
+	struct getattr_req req;
+	struct getattr_resp resp;
 
 	printf("in getattr %p\n", opc);
 	ctx = puffs_getspecific(pu);
@@ -46,7 +46,7 @@ puffboy_node_getattr(struct puffs_usermount *pu, puffs_cookie_t opc,
 }
 
 static void
-gba_getattr(int fd, struct req_getattr *req, struct resp_getattr *resp)
+gba_getattr(int fd, struct getattr_req *req, struct getattr_resp *resp)
 {
 	struct joybus_ctx ctx;
 	ctx.fd = fd;
@@ -54,8 +54,8 @@ gba_getattr(int fd, struct req_getattr *req, struct resp_getattr *resp)
 
 	wait_clear(fd, DELAY, MSG_TIMEOUT);
 	gba_write(ctx.fd, htonl(CMD_GETATTR), &ctx.status, ctx.delay);
-	send_request(&ctx, req, sizeof(struct req_getattr));
-	receive_response(&ctx, resp, sizeof(struct resp_getattr));
+	send_request(&ctx, req, sizeof(struct getattr_req));
+	receive_response(&ctx, resp, sizeof(struct getattr_resp));
 
 	resp->exists = bswap32(resp->exists);
 	resp->va_type = bswap32(resp->va_type);

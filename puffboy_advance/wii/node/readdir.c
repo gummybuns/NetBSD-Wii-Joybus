@@ -6,7 +6,7 @@
 #include "../../shared/command.h"
 #include "../../../wiishared/lib/gcport_ioctl.h"
 
-static void get_nth_entry(int, struct nth_entry_request *, struct nth_entry_response *);
+static void gba_readdir(int, struct readdir_req *, struct readdir_resp *);
 
 int
 puffboy_node_readdir(struct puffs_usermount *pu, puffs_cookie_t opc,
@@ -15,8 +15,8 @@ puffboy_node_readdir(struct puffs_usermount *pu, puffs_cookie_t opc,
 		     size_t *ncookies)
 {
 	struct pba_context *ctx;
-	struct nth_entry_request req;
-	struct nth_entry_response resp;
+	struct readdir_req req;
+	struct readdir_resp resp;
 	uint32_t id;
 
 	printf("in readdir\n");
@@ -25,19 +25,7 @@ puffboy_node_readdir(struct puffs_usermount *pu, puffs_cookie_t opc,
 	printf("id is %d\n", id);
 	resp.exists = 0;
 
-	/* my understanding is that ncookies is always initialized to 0 */
 	*ncookies = 0;
-
-	/* dont perform for non directories */
-	/* TODO i _shouldnt_ but now my cookie is an id. so to a full call
-	 * will skip this check for now
-	 */
-	/*
-	if (pn->pn_va.va_type != VDIR) {
-		printf("in node_readdir pn is not a VDIR\n");
-		return ENOTDIR;
-	}
-	*/
 
 again:
 	if (*readoff == DENT_DOT || *readoff == DENT_DOTDOT) {
@@ -51,7 +39,7 @@ again:
 	for (;;) {
 		req.parent_fileid = id;
 		req.n = (int)DENT_ADJ(*readoff);
-		get_nth_entry(ctx->fd, &req, &resp);
+		gba_readdir(ctx->fd, &req, &resp);
 		if (!resp.exists) {
 			*eofflag = 1;
 			break;
@@ -68,7 +56,7 @@ again:
 }
 
 static void
-get_nth_entry(int fd, struct nth_entry_request *req, struct nth_entry_response *resp)
+gba_readdir(int fd, struct readdir_req *req, struct readdir_resp *resp)
 {
 	struct joybus_ctx ctx;
 
@@ -76,9 +64,9 @@ get_nth_entry(int fd, struct nth_entry_request *req, struct nth_entry_response *
 	ctx.delay = DELAY;
 
 	wait_clear(fd, DELAY, MSG_TIMEOUT);
-	gba_write(ctx.fd, htonl(CMD_NTH_ENTRY), &ctx.status, ctx.delay);
-	send_request(&ctx, req, sizeof(struct nth_entry_request));
-	receive_response(&ctx, resp, sizeof(struct nth_entry_response));
+	gba_write(ctx.fd, htonl(CMD_READDIR), &ctx.status, ctx.delay);
+	send_request(&ctx, req, sizeof(struct readdir_req));
+	receive_response(&ctx, resp, sizeof(struct readdir_resp));
 
 	resp->exists = bswap32(resp->exists);
 	resp->va_fileid = bswap32(resp->va_fileid);

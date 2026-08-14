@@ -129,11 +129,11 @@ send_response:
 static int
 handle_getattr_request()
 {
-	struct req_getattr req;
-	struct resp_getattr resp;
+	struct getattr_req req;
+	struct getattr_resp resp;
 	struct entry *ent;
 
-	receive_response(linkCube, &req, sizeof(struct req_getattr));
+	receive_response(linkCube, &req, sizeof(struct getattr_req));
 	req.fileid = ntohl(req.fileid);
 
 	ent = find_by_id(req.fileid);
@@ -156,25 +156,23 @@ handle_getattr_request()
 		resp.va_vaflags = ent->va_vaflags;
 		resp.va_spare = ent->va_spare;
 	}
-	send_request(linkCube, &resp, sizeof(struct resp_getattr));
+	send_request(linkCube, &resp, sizeof(struct getattr_resp));
 	return 0;
 }
 
 static int
-handle_nth_entry_request()
+handle_readdir_request()
 {
-	u32 recv;
-	int i,j;
-	struct nth_entry_request req;
-	struct nth_entry_response resp;
+	int i;
+	struct readdir_req req;
+	struct readdir_resp resp;
 	struct entry *parent, *res;
-	struct packet pk, pk2;
 
 	parent = NULL;
 	res = NULL;
 	resp.exists = 0;
 
-	receive_response(linkCube, &req, sizeof(struct nth_entry_request));
+	receive_response(linkCube, &req, sizeof(struct readdir_req));
 	req.parent_fileid = ntohl(req.parent_fileid);
 	req.n = ntohl(req.n);
 
@@ -202,97 +200,8 @@ send_response:
 		resp.va_fileid = 0;
 		resp.va_type = 0;
 	}
-	send_request(linkCube, (struct nth_entry_response *) &resp, sizeof(struct nth_entry_response));
+	send_request(linkCube, &resp, sizeof(struct readdir_resp));
 	return 0;
-}
-
-static void mytest()
-{
-	return;
-	u32 recv;
-	int i,j;
-	u32 req_pkt[WORD_CNT(struct nth_entry_request) * 2];
-	u32 req_buf[WORD_CNT(struct nth_entry_request)];
-	u32 resp_buf[WORD_CNT(struct nth_entry_response)];
-	u32 resp_pkt[WORD_CNT(struct nth_entry_response) * 2];
-	u32 in, in2;
-	char msg[100];
-	struct nth_entry_request req;
-	struct nth_entry_response resp;
-	struct entry *parent, *res;
-	struct packet pk, pk2;
-
-	//linkCube->send(CMD_NTH_ENTRY);
-	parent = NULL;
-	res = NULL;
-	resp.exists = 0;
-
-	i = 0;
-	req_pkt[0] = 0x01010000;
-	req_pkt[1] = 0x02010001;
-	req_pkt[2] = 0x03010000;
-	req_pkt[3] = 0x04010000;
-
-	i = 0;
-	j = 0;
-	while (i < WORD_CNT(struct nth_entry_request)) {
-		j = 2*i;
-		pk = to_packet(req_pkt[j]);
-		pk2 = to_packet(req_pkt[j+1]);
-		req_buf[i] = merge_packets(pk, pk2);
-		snprintf(msg, sizeof(msg), "in:0x%08X | 0x%08X - 0x%08X\n", pk.data, pk2.data, req_buf[i]);
-		tte_write(msg);
-		i++;
-	}
-	memcpy(&req, req_buf, sizeof(struct nth_entry_request));
-	req.parent_fileid = req.parent_fileid;
-	req.n = req.n;
-	tte_write("==============\n");
-	snprintf(msg, sizeof(msg), "req.parent 0x%08X / req.n 0x%08x\n", req.parent_fileid, req.n);
-	tte_write(msg);
-	snprintf(msg, sizeof(msg), "req.parent %d / req.n %d\n", req.parent_fileid, req.n);
-	tte_write(msg);
-	tte_write("==============\n");
-	/*
-	u32 resp_buf[WORD_CNT(struct nth_entry_response)];
-	u32 resp_pkt[WORD_CNT(struct nth_entry_response) * 2];
-	char msg[100];
-	int i, j;
-	struct nth_entry_response resp;
-	struct packet pk;
-
-	resp.exists = 1;
-	resp.va_fileid = 1;
-	resp.va_type = VREG;
-	snprintf(resp.name, sizeof(resp.name), "hello.txt");
-
-	memcpy(resp_buf, &resp, sizeof(struct nth_entry_response));
-	snprintf(msg, sizeof(msg), "va_type: %d\n", resp.va_type);
-	tte_write(msg);
-	snprintf(msg, sizeof(msg), "name: %s\n", resp.name);
-	tte_write(msg);
-	i = 0;
-	j = 0;
-	while (i < WORD_CNT(struct nth_entry_response)) {
-		j = 2 * i;
-		pk.seq = 1;
-		pk.cmd = 1;
-		pk.data = (u16)(resp_buf[i] & 0xFFFF);
-		resp_pkt[j] = to_u32(pk);
-		//snprintf(msg, sizeof(msg), "j: 0x%08x\n", resp_pkt[j]);
-		//tte_write(msg);
-		pk.data = (u16)(resp_buf[i] >> 16);
-		resp_pkt[j+1] = to_u32(pk);
-		//snprintf(msg, sizeof(msg), "j+1: 0x%08x\n", resp_pkt[j+1]);
-		//tte_write(msg);
-		i++;
-	}
-	for (i = 0; i < (int)WORD_CNT(struct nth_entry_response)*2; i++) {
-		snprintf(msg, sizeof(msg), "sending 0x%08X\n", resp_pkt[i]);
-		tte_write(msg);
-		//linkCube->send(resp_pkt[i]);
-	}
-	*/
 }
 
 static void
@@ -375,21 +284,20 @@ int main()
 	};
 
 	tte_write("Waiting for messages\n");
-	mytest();
 	while (true) {
 		while (linkCube->canRead()) {
 			recv = ntohl(linkCube->read());
 			switch (recv) {
-			case CMD_NTH_ENTRY:
-				handle_nth_entry_request();
-				mmEffectEx(&ding);
-				break;
-			case CMD_GETATTR:
-				handle_getattr_request();
+			case CMD_READDIR:
+				handle_readdir_request();
 				mmEffectEx(&ding);
 				break;
 			case CMD_LOOKUP:
 				handle_lookup_request();
+				mmEffectEx(&ding);
+				break;
+			case CMD_GETATTR:
+				handle_getattr_request();
 				mmEffectEx(&ding);
 				break;
 			default:
