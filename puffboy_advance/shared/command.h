@@ -15,11 +15,38 @@
 #ifndef _COMMAND_H
 #define _COMMAND_H
 
+#if defined(__powerpc__)
+	#include <arpa/inet.h>
+	#include "../wii/pba.h"
+	#include "../../wiishared/lib/gcport_ioctl.h"
+
+	#define BSWAP16(n)	bswap16(n)
+	#define BSWAP32(n)	bswap32(n)
+	#define BSWAP64(n)	bswap64(n)
+#else
+	#include <cstring>
+	#define BSWAP16(n)	__builtin_bswap16(n)
+	#define BSWAP32(n)	__builtin_bswap32(n)
+	#define BSWAP64(n)	__builtin_bswap64(n)
+
+	#define htonl(n) 	BSWAP32(n)
+	#define ntohl(n) 	BSWAP32(n)
+	#define htons(n) 	BSWAP16(n)
+	#define ntohs(n) 	BSWAP16(n)
+#endif
+
 #define CMD_READDIR	0x0011
 #define CMD_LOOKUP	0x0012
 #define CMD_GETATTR	0x0013
-#define WORD_CNT(n) ((sizeof(n)+3)/4)
-#define SEQ_NUM(n) ((n % 254) + 1)
+
+#define WORD_CNT(n) 	((sizeof(n)+3)/4)
+#define SEQ_NUM(n) 	((n % 254) + 1)
+
+/* set and swap functions */
+#define SSWAP16(s, n)	((s)->n = BSWAP16((s)->n))
+#define SSWAP32(s, n)	((s)->n = BSWAP32((s)->n))
+#define SSWAP64(s, n)	((s)->n = BSWAP64((s)->n))
+
 
 struct packet {
 	uint8_t seq;
@@ -75,31 +102,6 @@ struct getattr_resp {
 	uint64_t	va_vaflags;
 	uint64_t	va_spare;
 };
-
-#if defined(__powerpc__)
-	#include <arpa/inet.h>
-	#include "../wii/pba.h"
-	#include "../../wiishared/lib/gcport_ioctl.h"
-#else
-	#include <cstring>
-	#define htonl(n) __builtin_bswap32(n)
-	#define ntohl(n) __builtin_bswap32(n)
-	#define htons(n) __builtin_bswap16(n)
-	#define ntohs(n) __builtin_bswap16(n)
-
-	static inline void
-	print_u32(uint32_t v)
-	{
-		char msg[100];
-		uint8_t p1, p2, p3, p4;
-		p1 = ((uint8_t *)&v)[0];
-		p2 = ((uint8_t *)&v)[1];
-		p3 = ((uint8_t *)&v)[2];
-		p4 = ((uint8_t *)&v)[3];
-		snprintf(msg, sizeof(msg), "%d - %02X %02X %02X %02X\n", v, p1, p2, p3, p4);
-		tte_write(msg);
-	}
-#endif
 
 static struct packet                                                                      
 to_packet(uint32_t val)                                                            

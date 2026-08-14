@@ -65,7 +65,7 @@ gba_readdir(struct pba_context *ctx, struct readdir_req *req,
 	send_request(ctx, req, sizeof(struct readdir_req));
 	receive_response(ctx, resp, sizeof(struct readdir_resp));
 
-	resp->exists = bswap32(resp->exists);
-	resp->va_fileid = bswap32(resp->va_fileid);
-	resp->va_type = bswap32(resp->va_type);
+	SSWAP32(resp, exists);
+	SSWAP32(resp, va_fileid);
+	SSWAP32(resp, va_type);
 }

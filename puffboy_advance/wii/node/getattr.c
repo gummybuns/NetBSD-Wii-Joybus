@@ -54,21 +54,21 @@ gba_getattr(struct pba_context *ctx, struct getattr_req *req, struct getattr_res
 	send_request(ctx, req, sizeof(struct getattr_req));
 	receive_response(ctx, resp, sizeof(struct getattr_resp));
 
-	resp->exists = bswap32(resp->exists);
-	resp->va_type = bswap32(resp->va_type);
-	resp->va_mode = bswap32(resp->va_mode);
-	resp->va_nlink = bswap32(resp->va_nlink);
-	resp->va_uid = bswap32(resp->va_uid);
-	resp->va_gid = bswap32(resp->va_gid);
-	resp->va_gen = bswap64(resp->va_gen);
-	resp->va_fsid = bswap64(resp->va_fsid);
-	resp->va_fileid = bswap32(resp->va_fileid);
-	resp->va_size = bswap64(resp->va_size);
-	resp->va_size = bswap32(resp->va_blocksize);
-	resp->va_flags = bswap64(resp->va_flags);
-	resp->va_rdev = bswap64(resp->va_rdev);
-	resp->va_bytes = bswap64(resp->va_bytes);
-	resp->va_filerev = bswap64(resp->va_filerev);
-	resp->va_vaflags = bswap64(resp->va_vaflags);
-	resp->va_spare = bswap64(resp->va_spare);
+	SSWAP32(resp, exists);
+	SSWAP32(resp, va_type);
+	SSWAP32(resp, va_mode);
+	SSWAP32(resp, va_nlink);
+	SSWAP32(resp, va_uid);
+	SSWAP32(resp, va_gid);
+	SSWAP64(resp, va_gen);
+	SSWAP64(resp, va_fsid);
+	SSWAP32(resp, va_fileid);
+	SSWAP64(resp, va_size);
+	SSWAP32(resp, va_blocksize);
+	SSWAP64(resp, va_flags);
+	SSWAP64(resp, va_rdev);
+	SSWAP64(resp, va_bytes);
+	SSWAP64(resp, va_filerev);
+	SSWAP64(resp, va_vaflags);
+	SSWAP64(resp, va_spare);
 }

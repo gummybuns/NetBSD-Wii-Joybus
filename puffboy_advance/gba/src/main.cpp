@@ -97,7 +97,7 @@ handle_lookup_request()
 	struct entry *parent, *ent, *match;
 
 	receive_response(linkCube, &req, sizeof(struct lookup_req));
-	req.parent_fileid = ntohl(req.parent_fileid);
+	SSWAP32(&req, parent_fileid);
 	match = NULL;
 
 	parent = find_by_id(req.parent_fileid);
@@ -134,7 +134,7 @@ handle_getattr_request()
 	struct entry *ent;
 
 	receive_response(linkCube, &req, sizeof(struct getattr_req));
-	req.fileid = ntohl(req.fileid);
+	SSWAP32(&req, fileid);
 
 	ent = find_by_id(req.fileid);
 
@@ -173,8 +173,8 @@ handle_readdir_request()
 	resp.exists = 0;
 
 	receive_response(linkCube, &req, sizeof(struct readdir_req));
-	req.parent_fileid = ntohl(req.parent_fileid);
-	req.n = ntohl(req.n);
+	SSWAP32(&req, parent_fileid);
+	SSWAP32(&req, n);
 
 	parent = find_by_id(req.parent_fileid);
 
@@ -286,7 +286,7 @@ int main()
 	tte_write("Waiting for messages\n");
 	while (true) {
 		while (linkCube->canRead()) {
-			recv = ntohl(linkCube->read());
+			recv = BSWAP32(linkCube->read());
 			switch (recv) {
 			case CMD_READDIR:
 				handle_readdir_request();

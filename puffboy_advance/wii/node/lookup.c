@@ -56,7 +56,7 @@ gba_lookup(struct pba_context *ctx, struct lookup_req *req,
 	send_request(ctx, req, sizeof(struct lookup_req));
 	receive_response(ctx, resp, sizeof(struct lookup_resp));
 
-	resp->exists = bswap32(resp->exists);
-	resp->va_type = bswap32(resp->va_type);
-	resp->va_fileid = bswap32(resp->va_fileid);
+	SSWAP32(resp, exists);
+	SSWAP32(resp, va_fileid);
+	SSWAP32(resp, va_type);
 }
