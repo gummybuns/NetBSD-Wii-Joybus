@@ -10,11 +10,6 @@
 #define ENTRIES_MAX 20
 #define BLOCKSIZE 1024
 
-extern "C" {
-	#include <maxmod.h>
-	#include "soundbank.h"
-	#include "soundbank_bin.h"
-}
 struct packet to_packet(uint32_t);
 uint32_t to_u32(struct packet);
 uint32_t merge_packets(struct packet, struct packet);
@@ -44,21 +39,6 @@ struct entry {
 	struct entry	*child;
 };
 
-uint32_t
-to_u32(struct packet pk)
-{
-	return (uint32_t)pk.data & 0xFFFF | (uint32_t)pk.cmd << 16 | (uint32_t)pk.seq << 24;
-}
-
-/*
- * Wii sends data over as packets. Each packet corresponds to half of
- * a word. Merge to get the full word
- */
-uint32_t merge_packets(struct packet pk1, struct packet pk2)
-{
-	return ((uint32_t)pk2.data & 0xFFFF) | (((uint32_t)pk1.data) << 16);
-}
-
 bool a = true, b = true, l = true;
 int ID = 1;
 struct entry *ENTRIES[ENTRIES_MAX];
@@ -69,8 +49,9 @@ void init() {
  	Common::initTTE();
 
   	interrupt_init();
-  	interrupt_add(INTR_VBLANK, mmVBlank);
   	interrupt_add(INTR_SERIAL, LINK_CUBE_ISR_SERIAL);
+	//interrupt_add(INTR_VBLANK, []() {});
+	interrupt_disable(INTR_VBLANK);
 }
 
 
@@ -259,10 +240,7 @@ entry_append(struct entry *parent, struct entry *ent)
 int main()
 {
 	init();
-
 	linkCube->activate();
-	mmInitDefault( (mm_addr)soundbank_bin, 8 );
-
 	u32 recv;
 	struct entry root, test;
 
@@ -275,14 +253,6 @@ int main()
 	entry_append(&root, &test);
 	snprintf(test.name, sizeof(test.name), "hello.txt");
 
-	mm_sound_effect ding {
-		{ SFX_DING },
-		1024,
-		0,
-		255,
-		0
-	};
-
 	tte_write("Waiting for messages\n");
 	while (true) {
 		while (linkCube->canRead()) {
@@ -290,30 +260,17 @@ int main()
 			switch (recv) {
 			case CMD_READDIR:
 				handle_readdir_request();
-				mmEffectEx(&ding);
 				break;
 			case CMD_LOOKUP:
 				handle_lookup_request();
-				mmEffectEx(&ding);
 				break;
 			case CMD_GETATTR:
 				handle_getattr_request();
-				mmEffectEx(&ding);
 				break;
 			default:
-				tte_write("unknown command");
+				break;
 			}
 		}
-
-		// Clear
-		if (Common::didPress(KEY_B, b)) {
-			tte_erase_screen();
-			tte_set_pos(0, 0);
-			tte_write("Waiting for messages\n");
-		}
-
-		VBlankIntrWait();
-		mmFrame();
 	}
 
 	return 0;

@@ -23,11 +23,8 @@ puffboy_node_lookup(struct puffs_usermount *pu, puffs_cookie_t opc,
 	req.parent_fileid = cookie_to_fileid(opc);
 	resp.exists = 0;
 
-	printf("in node_lookup for %s\n", pcn->pcn_name);
-
 	/* we are not concerning ourselves with parent directories */
 	if (PCNISDOTDOT(pcn)) {
-		printf("I AM IN HERE!!!!\n");
 		printf("node_lookup PCN is DOTDOT\n");
 		return ENOENT;
 	}
@@ -39,7 +36,6 @@ puffboy_node_lookup(struct puffs_usermount *pu, puffs_cookie_t opc,
 		return ESTALE;
 	}
 
-	printf("node found!\n");
 	puffs_newinfo_setcookie(pni, fileid_to_cookie(resp.va_fileid));
 	puffs_newinfo_setvtype(pni, resp.va_type);
 	puffs_newinfo_setsize(pni, (voff_t)resp.va_size);

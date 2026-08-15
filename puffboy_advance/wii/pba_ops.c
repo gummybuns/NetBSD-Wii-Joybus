@@ -41,7 +41,6 @@ pba_cmap(struct puffs_usermount *pu, puffs_cookie_t cookie)
 	ent->pn = puffs_pn_new(pu, NULL);
 	ent->id = id;
 	SLIST_INSERT_HEAD(&(ctx->head), ent, entries);
-	printf("I AM RETURNING THE NEW NODE\n");
 	return ent->pn;
 }
 

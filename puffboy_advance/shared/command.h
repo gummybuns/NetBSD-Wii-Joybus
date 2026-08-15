@@ -150,11 +150,12 @@ receive_response(void *ctx, void *resp, size_t sz)
 	while (i < sz / 2) {
 #if defined(__powerpc__)
 		struct pba_context *jbctx = ctx;
-		recv = ntohl(gba_read(jbctx->fd, &jbctx->status, 50));
+		jbctx->status = 0;
+		recv = ntohl(gba_read(jbctx->fd, &jbctx->status, jbctx->delay));
 # else
 		LinkCube *linkCube = (LinkCube *)ctx;
 		// TODO need to inform the wii about this or maybe i just retry?
-		if (!linkCube->canRead()) break;
+		if (!linkCube->canRead()) continue;
 		recv = ntohl(linkCube->read());
 #endif
 		pk = to_packet(recv);
@@ -162,6 +163,5 @@ receive_response(void *ctx, void *resp, size_t sz)
 		((uint16_t *)buf)[i] = ntohs(pk.data);
 		i++;
 	}
-
 	memcpy(resp, buf, sz);
 }

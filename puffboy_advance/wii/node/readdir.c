@@ -20,10 +20,8 @@ puffboy_node_readdir(struct puffs_usermount *pu, puffs_cookie_t opc,
 	struct readdir_resp resp;
 	uint32_t id;
 
-	printf("in readdir\n");
 	ctx = puffs_getspecific(pu);
 	id = cookie_to_fileid(opc);
-	printf("id is %d\n", id);
 	resp.exists = 0;
 
 	*ncookies = 0;

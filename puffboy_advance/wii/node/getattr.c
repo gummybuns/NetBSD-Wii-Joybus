@@ -17,7 +17,6 @@ puffboy_node_getattr(struct puffs_usermount *pu, puffs_cookie_t opc,
 	struct getattr_req req;
 	struct getattr_resp resp;
 
-	printf("in getattr %p\n", opc);
 	ctx = puffs_getspecific(pu);
 	req.fileid = cookie_to_fileid(opc);
 	resp.exists = 0;
