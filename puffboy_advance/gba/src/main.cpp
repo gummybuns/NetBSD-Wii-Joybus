@@ -8,7 +8,7 @@
 #include <string.h>
 
 #define ENTRIES_MAX 20
-#define BLOCKSIZE 1024
+#define BLOCKSIZE 128
 #define PBA_BLOCKSHIFT (12)
 #define PBA_BLOCKSIZE  (1<<PBA_BLOCKSHIFT)
 #define ROUNDUP(a,b) ((a) & ((b)-1))
@@ -53,6 +53,7 @@ uint32_t to_u32(struct packet);
 uint32_t merge_packets(struct packet, struct packet);
 static struct entry *entry_init(enum vtype);
 static void entry_append(struct entry *, struct entry *);
+uint32_t entry_setsize(struct entry *ent,  size_t sz);
 
 bool a = true, b = true, l = true;
 int ID = 1;
@@ -65,8 +66,8 @@ void init() {
 
   	interrupt_init();
   	interrupt_add(INTR_SERIAL, LINK_CUBE_ISR_SERIAL);
-	//interrupt_add(INTR_VBLANK, []() {});
-	interrupt_disable(INTR_VBLANK);
+	interrupt_add(INTR_VBLANK, []() {});
+	//interrupt_disable(INTR_VBLANK);
 }
 
 
@@ -205,6 +206,116 @@ send_response:
 	return 0;
 }
 
+uint32_t
+entry_setsize(struct entry *ent, size_t newsize)
+{
+	struct gba_file *file;
+	size_t newblocks, i;
+	int needalloc, shrinks;
+
+	file = ent->file;
+	needalloc = newsize > ROUNDUP(file->datalen, PBA_BLOCKSIZE);
+	shrinks = newsize < ent->va_size;
+	if (needalloc || shrinks) {
+		newblocks = BLOCKNUM(newsize, PBA_BLOCKSHIFT) + 1;
+
+		if (shrinks) {
+			for (i = newblocks; i < file->numblocks; i++) {
+				free(file->blocks[i]);
+			}
+		}
+
+		file->blocks = (uint8_t **)realloc(file->blocks, newblocks * sizeof(uint8_t *));
+
+		if (!shrinks) {
+			for (i = file->numblocks; i < newblocks; i++) {
+				file->blocks[i] = (uint8_t *)malloc(PBA_BLOCKSIZE);
+				memset(file->blocks[i], 0, PBA_BLOCKSIZE);
+			}
+		}
+
+		file->datalen = newsize;
+		file->numblocks = newblocks;
+	}
+
+
+	ent->va_size = newsize;
+	ent->va_bytes = BLOCKNUM(newsize,PBA_BLOCKSHIFT)>>PBA_BLOCKSHIFT;
+
+	return 0;
+}
+
+static int
+handle_write_request()
+{
+	struct write_req wreq;
+	struct write_resp wresp;
+	struct write_buf_req breq;
+	struct write_buf_resp bresp;
+	struct entry *ent;
+	struct gba_file *file;
+	uint8_t *src, *dest;
+	size_t copylen;
+	int i;
+
+	tte_write("IN WRITE_REQUEST\n");
+	receive_response(linkCube, &wreq, sizeof(struct write_req));
+	SSWAP32(&wreq, fileid);
+	SSWAP32(&wreq, io_append);
+	SSWAP64(&wreq, offset);
+	SSWAP64(&wreq, resid);
+	tte_write("RECEIVED RESPONSE\n");
+	
+	ent = find_by_id(wreq.fileid);
+	if (ent == NULL) {
+		tte_write("ENTRY NOT FOUND\n");
+		wresp.exists = 0;
+		wresp.err = 1;
+		goto send_write_resp;
+	}
+	wresp.exists = 1;
+	wresp.err = 0;
+	tte_write("ENTRY FOUND\n");
+
+	file = ent->file;
+	if (wreq.io_append) {
+		tte_write("APPENDING\n");
+		wreq.offset += ent->va_size;
+	}
+
+	if (wreq.offset + wreq.resid > ent->va_size) {
+		tte_write("ENTERING SETSIZE\n");
+		wresp.err = entry_setsize(ent,  wreq.offset + wreq.resid);
+		tte_write("FINISHED SET_SIZE\n");
+	}
+
+send_write_resp:
+	send_request(linkCube, &wresp, sizeof(struct write_resp));
+	tte_write("FINISHED SENDING WRESP\n");
+	if (wresp.err > 0) return 0;
+
+	tte_write("ENTERING LOOP\n");
+	char msg[150];
+	while (wreq.resid > 0) {
+		snprintf(msg, sizeof(msg),"resid is %lld\n", wreq.resid);
+		tte_write(msg);
+		copylen = MIN(wreq.resid, BLOCKLEFT(wreq.offset, PBA_BLOCKSIZE));
+		i = BLOCKNUM(wreq.offset, PBA_BLOCKSHIFT);
+		dest = file->blocks[i] + BLOCKOFF(wreq.offset, PBA_BLOCKSIZE);
+
+		receive_response(linkCube, &breq, sizeof(struct write_buf_req));
+		src = breq.buf;
+		memcpy(dest, src, copylen);
+		wreq.offset += copylen;
+		dest += copylen;
+		wreq.resid -= copylen;
+		bresp.err = 0;
+		send_request(linkCube, &bresp, sizeof(struct write_buf_resp));
+	}
+
+	tte_write("FINISHED LOOP\n");
+	return 0;
+}
 
 static int
 handle_readdir_request()
@@ -355,10 +466,14 @@ int main()
 			case CMD_CREATE:
 				handle_create_request();
 				break;
+			case CMD_WRITE:
+				handle_write_request();
 			default:
 				break;
 			}
 		}
+
+		VBlankIntrWait();
 	}
 
 	return 0;

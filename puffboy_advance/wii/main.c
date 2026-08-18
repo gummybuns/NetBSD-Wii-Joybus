@@ -63,21 +63,27 @@ puffboy_domount(struct puffs_usermount *pu, struct gba_node *gn)
 
 
 /*
- * TODO
- * apparently touching a new file requires write to exist.
- * this is a placeholder but i will need to properly implement this anyways..
- * so this will be the next thing up
- *
- * even though it doesnt get called... wtf
- * there is clearly some check in puffs that ensures it exists or something
- */
-int puffboy_node_write(struct puffs_usermount *pu, void *opc, uint8_t *buf,off_t offset, size_t *resid, const struct puffs_cred *pcr, int ioflag)
+int puffboy_node_access(struct puffs_usermount *pu, puffs_cookie_t opc,
+         int mode, const struct puffs_cred *pcr)
 {
-	printf("IN NODE WRITE\n");
-	*resid = 0;
+	printf("in node access\n");
 	return 0;
 }
 
+int puffboy_node_open(struct puffs_usermount *pu, puffs_cookie_t opc, int mode,
+const struct puffs_cred *pcr)
+{
+	printf("in node open\n");
+	return 0;
+}
+
+int puffboy_node_setattr(struct puffs_usermount *pu, puffs_cookie_t opc,
+         const struct vattr *vap, const struct puffs_cred *pcr)
+{
+	printf("in node setattr\n");
+	return 0;
+}
+*/
 
 int
 main(int argc, char *argv[])
@@ -118,7 +124,8 @@ main(int argc, char *argv[])
 	root_node.name = estrndup(ROOT_NAME, strlen(ROOT_NAME));
 	SLIST_INIT(&root_node.head);
 
-	pflags = 0;
+	/* IMPORTANT - without NOCCHE_PAGE i get a kernel panic on write */
+	pflags = PUFFS_KFLAG_IAONDEMAND | PUFFS_KFLAG_NOCACHE_PAGE;
 	mntflags = 0;
 
 	/*
@@ -181,6 +188,7 @@ main(int argc, char *argv[])
 		err(1, "mount failed");
 	}
 
+	printf("entering main loop\n");
 	if (puffs_mainloop(pu) == -1) {
 		err(1, "mainloop failed");
 	}

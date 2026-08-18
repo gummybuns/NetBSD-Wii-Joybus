@@ -39,6 +39,7 @@
 #define CMD_LOOKUP	0x0012
 #define CMD_GETATTR	0x0013
 #define CMD_CREATE	0x0014
+#define CMD_WRITE	0x0015
 
 #define WORD_CNT(n) 	((sizeof(n)+3)/4)
 #define SEQ_NUM(n) 	((n % 254) + 1)
@@ -127,6 +128,27 @@ struct create_resp {
 	uint64_t	va_filerev;
 	uint64_t	va_vaflags;
 	uint64_t	va_spare;
+};
+
+struct write_req {
+	uint32_t	fileid;
+	uint32_t	io_append;
+	uint64_t	offset;
+	uint64_t	resid;
+};
+
+struct write_resp {
+	uint32_t	exists;
+	uint32_t	err;
+};
+
+struct write_buf_req {
+	uint32_t	buflen;
+	uint8_t		buf[128];
+};
+
+struct write_buf_resp {
+	uint32_t	err;
 };
 
 static struct packet
