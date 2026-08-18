@@ -9,10 +9,12 @@
 
 #define ENTRIES_MAX 20
 #define BLOCKSIZE 1024
-
-struct packet to_packet(uint32_t);
-uint32_t to_u32(struct packet);
-uint32_t merge_packets(struct packet, struct packet);
+#define PBA_BLOCKSHIFT (12)
+#define PBA_BLOCKSIZE  (1<<PBA_BLOCKSHIFT)
+#define ROUNDUP(a,b) ((a) & ((b)-1))
+#define BLOCKNUM(a,b) (((a) & ~((1<<(b))-1)) >> (b))
+#define BLOCKOFF(a,b) ((a) & ((b)-1))
+#define BLOCKLEFT(a,b) ((b) - BLOCKOFF(a,b))
 
 /* taken from NetBSD-src/sys/sys/vnode.h */
 enum vtype      { VNON, VREG, VDIR, VBLK, VCHR, VLNK, VSOCK, VFIFO, VBAD };
@@ -37,11 +39,24 @@ struct entry {
 	char		name[32];
 	struct entry	*next;
 	struct entry	*child;
+	struct gba_file	*file;
 };
+
+struct gba_file {
+	uint8_t **blocks;
+	size_t numblocks;
+	size_t datalen;
+};
+
+struct packet to_packet(uint32_t);
+uint32_t to_u32(struct packet);
+uint32_t merge_packets(struct packet, struct packet);
+static struct entry *entry_init(enum vtype);
+static void entry_append(struct entry *, struct entry *);
 
 bool a = true, b = true, l = true;
 int ID = 1;
-struct entry *ENTRIES[ENTRIES_MAX];
+struct entry ENTRIES[ENTRIES_MAX];
 
 LinkCube* linkCube = new LinkCube();
 
@@ -61,7 +76,7 @@ find_by_id(u32 id)
 	int i;
 	struct entry *cur;
 	for (i = 0; i < ENTRIES_MAX; i++) {
-		cur = ENTRIES[i];
+		cur = &ENTRIES[i];
 		if (cur && cur->va_fileid == id) {
 			return cur;
 		}
@@ -142,6 +157,56 @@ handle_getattr_request()
 }
 
 static int
+handle_create_request()
+{
+	struct create_req req;
+	struct create_resp resp;
+	struct entry *parent, *ent;
+
+	parent = NULL;
+	ent = NULL;
+	resp.exists = 0;
+
+	receive_response(linkCube, &req, sizeof(struct create_req));
+	SSWAP32(&req, parent_fileid);
+	parent = find_by_id(req.parent_fileid);
+
+	if (!parent) {
+		goto send_response;	
+	}
+
+	ent = entry_init(VREG);
+	if (!ent) {
+		goto send_response;
+	}
+
+	entry_append(parent, ent);
+	snprintf(ent->name, sizeof(ent->name), req.name);
+	resp.exists = 1;
+send_response:
+	if (resp.exists) {
+		resp.va_type = ent->va_type;
+		resp.va_mode = ent->va_mode;
+		resp.va_nlink = ent->va_nlink;
+		resp.va_uid = ent->va_uid;
+		resp.va_gid = ent->va_gid;
+		resp.va_gen = ent->va_gen;
+		resp.va_fsid = ent->va_fsid;
+		resp.va_fileid = ent->va_fileid;
+		resp.va_size = ent->va_size;
+		resp.va_flags = ent->va_flags;
+		resp.va_rdev = ent->va_rdev;
+		resp.va_bytes = ent->va_bytes;
+		resp.va_filerev = ent->va_filerev;
+		resp.va_vaflags = ent->va_vaflags;
+		resp.va_spare = ent->va_spare;
+	}
+	send_request(linkCube, &resp, sizeof(struct create_resp));
+	return 0;
+}
+
+
+static int
 handle_readdir_request()
 {
 	int i;
@@ -185,10 +250,23 @@ send_response:
 	return 0;
 }
 
-static void
-entry_init(struct entry *ent, enum vtype type)
+static struct entry *
+entry_init(enum vtype type)
 {
 	int i;
+	struct entry *ent;
+
+	ent = NULL;
+	for (i = 0; i < ENTRIES_MAX; i++) {
+		if (ENTRIES[i].va_fileid == 0) {
+			ent = &ENTRIES[i];
+			break;
+		}
+	}
+
+	if (!ent) {
+		return NULL;
+	}
 
 	ent->va_fileid = ID++;
 	ent->va_type = type;
@@ -197,10 +275,11 @@ entry_init(struct entry *ent, enum vtype type)
 	if (type == VDIR) {
 		ent->va_mode = 0777;
 		ent->va_nlink = 1; /* n + 1 after adding dent */
-
+		ent->file = NULL;
 	} else {
 		ent->va_mode = 0666;
 		ent->va_nlink = 0; /* n + 1 */
+		ent->file = (struct gba_file *)malloc(sizeof(struct gba_file));
 	}
 	ent->va_uid = 0;
 	ent->va_gid = 0;
@@ -212,12 +291,7 @@ entry_init(struct entry *ent, enum vtype type)
 	ent->va_filerev = 1;
 	ent->va_vaflags = 0;
 
-	for (i = 0; i < ENTRIES_MAX; i++) {
-		if (!ENTRIES[i]) {
-			ENTRIES[i] = ent;
-			break;
-		}
-	}
+	return ent;
 }
 
 static void
@@ -242,16 +316,27 @@ int main()
 	init();
 	linkCube->activate();
 	u32 recv;
-	struct entry root, test;
+	struct entry *root, *test;
 
+	tte_write("hello world\n");
 	for (int i = 0; i < ENTRIES_MAX; i++) {
-		ENTRIES[i] = NULL;
+		ENTRIES[i].va_fileid = 0;
 	}
-	entry_init(&root, VDIR);
+	tte_write("entry init root\n");
+	root = entry_init(VDIR);
+	if (root == NULL) {
+		tte_write("root is NULL\n");
+	}
 	
-	entry_init(&test, VREG);
-	entry_append(&root, &test);
-	snprintf(test.name, sizeof(test.name), "hello.txt");
+	tte_write("entry init test\n");
+	test = entry_init(VREG);
+	if (test == NULL) {
+		tte_write("test is NULL\n");
+	}
+	tte_write("entry append\n");
+	entry_append(root, test);
+	tte_write("copy name\n");
+	snprintf(test->name, sizeof(test->name), "hello.txt");
 
 	tte_write("Waiting for messages\n");
 	while (true) {
@@ -266,6 +351,9 @@ int main()
 				break;
 			case CMD_GETATTR:
 				handle_getattr_request();
+				break;
+			case CMD_CREATE:
+				handle_create_request();
 				break;
 			default:
 				break;

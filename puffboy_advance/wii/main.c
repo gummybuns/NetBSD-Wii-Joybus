@@ -2,6 +2,7 @@
 
 #include <err.h>
 #include <errno.h>
+#include <mntopts.h>
 #include <paths.h>
 #include <puffs.h>
 #include <stdio.h>
@@ -34,8 +35,6 @@
  * 9. Wii reads data back until nothing comes back
  */
 
-
-
 /*
  * Looking at other examples the first thing you want to do is create the root
  * node.
@@ -52,30 +51,59 @@ puffboy_domount(struct puffs_usermount *pu, struct gba_node *gn)
 	root = puffs_pn_new(pu, gn);
 	root->pn_va.va_type = VDIR;
 	root->pn_va.va_mode = 0755;
-	if (!root) {
-		err(1, "failed to create root node");
-	}
+
 	ent = malloc(sizeof(struct entry));
 	ent->pn = root;
 	ent->id = 1;
 
-	gn->pn = root;
 	puffs_setroot(pu, root);
 	SLIST_INSERT_HEAD(&(ctx->head), ent, entries);
 	return 0;
 }
 
+
+/*
+ * TODO
+ * apparently touching a new file requires write to exist.
+ * this is a placeholder but i will need to properly implement this anyways..
+ * so this will be the next thing up
+ *
+ * even though it doesnt get called... wtf
+ * there is clearly some check in puffs that ensures it exists or something
+ */
+int puffboy_node_write(struct puffs_usermount *pu, void *opc, uint8_t *buf,off_t offset, size_t *resid, const struct puffs_cred *pcr, int ioflag)
+{
+	printf("IN NODE WRITE\n");
+	*resid = 0;
+	return 0;
+}
+
+
 int
 main(int argc, char *argv[])
 {
-	uint32_t pflags;
-	int mntflags;
+	int mntflags, pflags, ch;
 	struct puffs_usermount *pu;
 	struct puffs_ops *pops;
 	struct gba_node root_node;
 	struct pba_context ctx;
+	mntoptparse_t mp;
 
 	setprogname(argv[0]);
+	printf("here\n");
+	while ((ch = getopt(argc, argv, "bc:dfilm:n:o:p:r:st")) != -1) {
+		switch (ch) {
+		case 'o':
+			mp = getmntopts(optarg, puffsmopts, &mntflags, &pflags);
+			if (mp == NULL)
+				err(1, "getmntopts");
+			freemntopts(mp);
+			break;
+		default:
+			err(1, "unhandled arg");
+		}
+	}
+	printf("now here\n");
 
 	ctx.fd = open("/dev/gcport0", O_RDWR);
 	ctx.delay = DELAY;
@@ -105,10 +133,16 @@ main(int argc, char *argv[])
 	PUFFSOP_SET(pops, puffboy, fs, statvfs);
 	PUFFSOP_SETFSNOP(pops, sync);
 
+	PUFFSOP_SET(pops, puffboy, node, create);
 	PUFFSOP_SET(pops, puffboy, node, lookup);
 	PUFFSOP_SET(pops, puffboy, node, readdir);
 	PUFFSOP_SET(pops, puffboy, node, pathconf);
 	PUFFSOP_SET(pops, puffboy, node, getattr);
+
+	//PUFFSOP_SET(pops, puffboy, node, access);
+	//PUFFSOP_SET(pops, puffboy, node, open);
+	//PUFFSOP_SET(pops, puffboy, node, setattr);
+	PUFFSOP_SET(pops, puffboy, node, write);
 
 	pu = puffs_init(pops, _PATH_PUFFS, "puffboy", &ctx, pflags);
 	puffs_set_cmap(pu, pba_cmap); /* THIS IS IMPORTANT */

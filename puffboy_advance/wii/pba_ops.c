@@ -31,18 +31,34 @@ pba_cmap(struct puffs_usermount *pu, puffs_cookie_t cookie)
 
 	ctx = puffs_getspecific(pu);
 	id = cookie_to_fileid(cookie);
+	printf("IN PBA_CMAP looking for %d\n", id);
 	SLIST_FOREACH(ent, &ctx->head, entries) {
 		if (id == ent->id) {
+			printf("entry found!\n");
 			return ent->pn;
 		}
 	}
+
+	printf("entry not found.. creating\n");
+	ent = entry_init(pu, id);
+	return ent->pn;
+}
+
+struct entry *
+entry_init(struct puffs_usermount *pu, uint32_t id)
+{
+	struct entry *ent;
+	struct pba_context *ctx;
+
+	ctx = puffs_getspecific(pu);
 
 	ent = malloc(sizeof(struct entry));
 	ent->pn = puffs_pn_new(pu, NULL);
 	ent->id = id;
 	SLIST_INSERT_HEAD(&(ctx->head), ent, entries);
-	return ent->pn;
+	return ent;
 }
+
 
 uint32_t
 cookie_to_fileid(puffs_cookie_t cookie)

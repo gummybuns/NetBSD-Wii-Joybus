@@ -38,6 +38,7 @@
 #define CMD_READDIR	0x0011
 #define CMD_LOOKUP	0x0012
 #define CMD_GETATTR	0x0013
+#define CMD_CREATE	0x0014
 
 #define WORD_CNT(n) 	((sizeof(n)+3)/4)
 #define SEQ_NUM(n) 	((n % 254) + 1)
@@ -103,14 +104,39 @@ struct getattr_resp {
 	uint64_t	va_spare;
 };
 
-static struct packet                                                                      
-to_packet(uint32_t val)                                                            
-{                                                                                  
-        struct packet pk;                                                          
-        pk.seq = (val >> 24) & 0xFF;                                               
-        pk.cmd = (val >> 16) & 0xFF;                                               
-        pk.data = val & 0xFFFF;                                                    
-        return pk;                                                                 
+struct create_req {
+	uint32_t	parent_fileid;
+	char		name[32];
+};
+
+struct create_resp {
+	uint32_t	exists;
+	uint32_t	va_type;
+	uint32_t	va_mode;
+	uint32_t	va_nlink;
+	uint32_t	va_uid;
+	uint32_t	va_gid;
+	uint64_t	va_gen;
+	uint64_t	va_fsid;
+	uint32_t	va_fileid;
+	uint64_t	va_size;
+	uint32_t	va_blocksize;
+	uint64_t	va_flags;
+	uint64_t	va_rdev;
+	uint64_t	va_bytes;
+	uint64_t	va_filerev;
+	uint64_t	va_vaflags;
+	uint64_t	va_spare;
+};
+
+static struct packet
+to_packet(uint32_t val)
+{
+        struct packet pk;
+        pk.seq = (val >> 24) & 0xFF;
+        pk.cmd = (val >> 16) & 0xFF;
+        pk.data = val & 0xFFFF;
+        return pk;
 }
 
 static inline void

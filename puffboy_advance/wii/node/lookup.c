@@ -32,8 +32,8 @@ puffboy_node_lookup(struct puffs_usermount *pu, puffs_cookie_t opc,
 	memcpy(req.name, pcn->pcn_name, sizeof(req.name));
 	gba_lookup(ctx, &req, &resp);
 	if (!resp.exists) {
-		printf("node_lookup is NULL\n");
-		return ESTALE;
+		printf("node_lookup is NULL for %s\n", req.name);
+		return ENOENT;
 	}
 
 	puffs_newinfo_setcookie(pni, fileid_to_cookie(resp.va_fileid));

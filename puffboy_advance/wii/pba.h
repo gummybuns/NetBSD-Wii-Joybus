@@ -34,6 +34,7 @@ struct gba_node {
 };
 
 struct puffs_node *pba_cmap(struct puffs_usermount *, puffs_cookie_t);
+struct entry *entry_init(struct puffs_usermount *, uint32_t);
 puffs_cookie_t fileid_to_cookie(uint32_t);
 uint32_t cookie_to_fileid(puffs_cookie_t);
 void puffboy_baseattrs(struct vattr *, enum vtype, ino_t);
