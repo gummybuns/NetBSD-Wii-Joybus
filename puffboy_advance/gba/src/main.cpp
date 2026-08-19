@@ -212,10 +212,14 @@ entry_setsize(struct entry *ent, size_t newsize)
 	struct gba_file *file;
 	size_t newblocks, i;
 	int needalloc, shrinks;
+	char msg[100];
 
 	file = ent->file;
 	needalloc = newsize > ROUNDUP(file->datalen, PBA_BLOCKSIZE);
 	shrinks = newsize < ent->va_size;
+	snprintf(msg, sizeof(msg), "newsize: %d / needalloc: %d / shrinks %d\n", newsize, needalloc, shrinks);
+	tte_write(msg);
+
 	if (needalloc || shrinks) {
 		newblocks = BLOCKNUM(newsize, PBA_BLOCKSHIFT) + 1;
 
@@ -225,6 +229,8 @@ entry_setsize(struct entry *ent, size_t newsize)
 			}
 		}
 
+		snprintf(msg, sizeof(msg), "newblocks: %d\n", newblocks);
+		tte_write(msg);
 		file->blocks = (uint8_t **)realloc(file->blocks, newblocks * sizeof(uint8_t *));
 
 		if (!shrinks) {
@@ -257,14 +263,15 @@ handle_write_request()
 	uint8_t *src, *dest;
 	size_t copylen;
 	int i;
+	char msg[150];
 
-	tte_write("IN WRITE_REQUEST\n");
 	receive_response(linkCube, &wreq, sizeof(struct write_req));
 	SSWAP32(&wreq, fileid);
 	SSWAP32(&wreq, io_append);
 	SSWAP64(&wreq, offset);
 	SSWAP64(&wreq, resid);
-	tte_write("RECEIVED RESPONSE\n");
+	snprintf(msg, sizeof(msg), "fileid: %ld / io_append: %ld / offset: %lld / resid: %lld\n", wreq.fileid, wreq.io_append, wreq.offset, wreq.resid);
+	tte_write(msg);
 	
 	ent = find_by_id(wreq.fileid);
 	if (ent == NULL) {
@@ -275,7 +282,7 @@ handle_write_request()
 	}
 	wresp.exists = 1;
 	wresp.err = 0;
-	tte_write("ENTRY FOUND\n");
+	tte_write("ENTRY FOUND - ");
 
 	file = ent->file;
 	if (wreq.io_append) {
@@ -284,9 +291,7 @@ handle_write_request()
 	}
 
 	if (wreq.offset + wreq.resid > ent->va_size) {
-		tte_write("ENTERING SETSIZE\n");
 		wresp.err = entry_setsize(ent,  wreq.offset + wreq.resid);
-		tte_write("FINISHED SET_SIZE\n");
 	}
 
 send_write_resp:
@@ -295,7 +300,6 @@ send_write_resp:
 	if (wresp.err > 0) return 0;
 
 	tte_write("ENTERING LOOP\n");
-	char msg[150];
 	while (wreq.resid > 0) {
 		snprintf(msg, sizeof(msg),"resid is %lld\n", wreq.resid);
 		tte_write(msg);
@@ -429,24 +433,19 @@ int main()
 	u32 recv;
 	struct entry *root, *test;
 
-	tte_write("hello world\n");
 	for (int i = 0; i < ENTRIES_MAX; i++) {
 		ENTRIES[i].va_fileid = 0;
 	}
-	tte_write("entry init root\n");
 	root = entry_init(VDIR);
 	if (root == NULL) {
 		tte_write("root is NULL\n");
 	}
 	
-	tte_write("entry init test\n");
 	test = entry_init(VREG);
 	if (test == NULL) {
 		tte_write("test is NULL\n");
 	}
-	tte_write("entry append\n");
 	entry_append(root, test);
-	tte_write("copy name\n");
 	snprintf(test->name, sizeof(test->name), "hello.txt");
 
 	tte_write("Waiting for messages\n");
