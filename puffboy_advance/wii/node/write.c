@@ -13,8 +13,8 @@ static void do_gba_write(struct pba_context *, struct write_buf_req *,
 
 int
 puffboy_node_write(struct puffs_usermount *pu, void *opc, uint8_t *buf,
-		   off_t offset, size_t *resid,
-		   const struct puffs_cred *pcr, int ioflag)
+		   off_t offset, size_t *resid, const struct puffs_cred *pcr,
+		   int ioflag)
 {
 	struct pba_context *ctx;
 	struct write_req wreq;
@@ -45,14 +45,18 @@ puffboy_node_write(struct puffs_usermount *pu, void *opc, uint8_t *buf,
 	printf("entering loop\n");
 	src = buf;
 	while (*resid > 0) {
+		// TODO - constantize the 128 to a blocksize
 		copylen = MIN(*resid, 128);
+		memset(breq.buf, 0, 128);
+		printf("copylen is %d\n", copylen);
 		memcpy(breq.buf, src, copylen);
-		printf("Writing:\n%s\n", src);
+		printf("Writing:\n%s\n", breq.buf);
 		breq.buflen = copylen;
 		do_gba_write(ctx, &breq, &bresp);
 		if (bresp.err > 0) {
 			return bresp.err;
 		}
+		src += copylen;
 		*resid -= copylen;
 	}
 	return 0;

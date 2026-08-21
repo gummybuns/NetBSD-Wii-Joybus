@@ -40,6 +40,7 @@
 #define CMD_GETATTR	0x0013
 #define CMD_CREATE	0x0014
 #define CMD_WRITE	0x0015
+#define CMD_READ	0x0016
 
 #define WORD_CNT(n) 	((sizeof(n)+3)/4)
 #define SEQ_NUM(n) 	((n % 254) + 1)
@@ -149,6 +150,18 @@ struct write_buf_req {
 
 struct write_buf_resp {
 	uint32_t	err;
+};
+
+struct read_req {
+	uint32_t	fileid;
+	uint32_t	copylen;
+	uint64_t	offset;
+};
+
+struct read_resp {
+	uint32_t	err;
+	uint32_t	copylen;
+	uint8_t		buf[128];
 };
 
 static struct packet

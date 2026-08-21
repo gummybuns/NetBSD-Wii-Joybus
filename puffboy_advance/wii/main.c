@@ -150,6 +150,7 @@ main(int argc, char *argv[])
 	//PUFFSOP_SET(pops, puffboy, node, open);
 	//PUFFSOP_SET(pops, puffboy, node, setattr);
 	PUFFSOP_SET(pops, puffboy, node, write);
+	PUFFSOP_SET(pops, puffboy, node, read);
 
 	pu = puffs_init(pops, _PATH_PUFFS, "puffboy", &ctx, pflags);
 	puffs_set_cmap(pu, pba_cmap); /* THIS IS IMPORTANT */

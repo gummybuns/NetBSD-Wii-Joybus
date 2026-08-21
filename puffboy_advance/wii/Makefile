@@ -3,7 +3,7 @@
 PROG=	pba
 SRCS+=	main.c pba_ops.c
 SRCS+=	fs/statvfs.c
-SRCS+=	node/create.c node/write.c
+SRCS+=	node/read.c node/create.c node/write.c
 SRCS+=	node/lookup.c node/readdir.c node/pathconf.c node/getattr.c
 
 CPPFLAGS+=	-D_KERNTYPES -g
