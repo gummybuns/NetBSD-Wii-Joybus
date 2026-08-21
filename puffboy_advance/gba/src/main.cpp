@@ -9,7 +9,7 @@
 
 #define ENTRIES_MAX 20
 
-#define BLOCK_MAX 10
+#define BLOCK_MAX 1024
 #define BLOCKSIZE 128
 #define PBA_BLOCKSHIFT (7)
 #define PBA_BLOCKSIZE  (1<<PBA_BLOCKSHIFT)
