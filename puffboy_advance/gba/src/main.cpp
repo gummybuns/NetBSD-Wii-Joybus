@@ -76,8 +76,8 @@ void init() {
 
   	interrupt_init();
   	interrupt_add(INTR_SERIAL, LINK_CUBE_ISR_SERIAL);
-	interrupt_add(INTR_VBLANK, []() {});
-	//interrupt_disable(INTR_VBLANK);
+	//interrupt_add(INTR_VBLANK, []() {});
+	interrupt_disable(INTR_VBLANK);
 }
 
 static inline struct gba_block *
@@ -254,7 +254,7 @@ entry_setsize(struct entry *ent, size_t newsize)
 	needalloc = newsize > ROUNDUP(file->datalen, PBA_BLOCKSIZE);
 	shrinks = newsize < ent->va_size;
 	snprintf(msg, sizeof(msg), "newsize: %d / needalloc: %d / shrinks %d\n", newsize, needalloc, shrinks);
-	tte_write(msg);
+	//tte_write(msg);
 
 	if (needalloc || shrinks) {
 		newblocks = BLOCKNUM(newsize, PBA_BLOCKSHIFT) + 1;
@@ -263,7 +263,7 @@ entry_setsize(struct entry *ent, size_t newsize)
 			for (i = newblocks; i < file->numblocks; i++) {
 				block = BLOCKFETCH(ent->va_fileid, i);
 				if (!block) {
-					tte_write("BLOCK NOT FOUND!\n");
+					//tte_write("BLOCK NOT FOUND!\n");
 					return EBLOCKNOTFOUND;
 				}
 				block->va_fileid = 0;
@@ -275,7 +275,7 @@ entry_setsize(struct entry *ent, size_t newsize)
 			for (i = file->numblocks; i < newblocks; i++) {
 				block = BLOCKFREE();
 				if (!block) {
-					tte_write("NO BLOCKS FREE!\n");
+					//tte_write("NO BLOCKS FREE!\n");
 					return ENOBLOCKSFREE;
 				}
 				block->va_fileid = ent->va_fileid;
@@ -287,7 +287,7 @@ entry_setsize(struct entry *ent, size_t newsize)
 		file->datalen = newsize;
 		file->numblocks = newblocks;
 		snprintf(msg, sizeof(msg), "newblocks: %d - datalen: %d\n", newblocks, file->datalen);
-		tte_write(msg);
+		//tte_write(msg);
 	}
 
 	ent->va_size = newsize;
@@ -316,7 +316,7 @@ handle_read_request()
 	SSWAP64(&req, offset);
 
 	snprintf(msg, sizeof(msg), "%ld / %lld\n", req.copylen, req.offset);
-	tte_write(msg);
+	//tte_write(msg);
 	ent = find_by_id(req.fileid);
 	if (ent == NULL) {
 		resp.err = 1;
@@ -331,13 +331,13 @@ handle_read_request()
 
 	resp.copylen = MIN(file->datalen - req.offset, PBA_BLOCKSIZE);
 	snprintf(msg, sizeof(msg), "file->datalen: %d - resp.copylen: %ld\n", file->datalen, resp.copylen);
-	tte_write(msg);
+	//tte_write(msg);
 	block = BLOCKFETCH(ent->va_fileid, BLOCKNUM(req.offset, PBA_BLOCKSHIFT));
 	src = block->data + BLOCKOFF(req.offset, PBA_BLOCKSIZE);
 	snprintf(msg, sizeof(msg), "block: %lld. blockoff: %lld\n", BLOCKNUM(req.offset, PBA_BLOCKSHIFT), BLOCKOFF(req.offset, PBA_BLOCKSIZE));
-	tte_write(msg);
+	//tte_write(msg);
 	memcpy(resp.buf, src, resp.copylen);
-	tte_write("FINISHED MEMCPY\n");
+	//tte_write("FINISHED MEMCPY\n");
 send_read_resp:
 	send_request(linkCube, &resp, sizeof(struct read_resp));
 	return 0;
@@ -364,11 +364,11 @@ handle_write_request()
 	SSWAP64(&wreq, offset);
 	SSWAP64(&wreq, resid);
 	snprintf(msg, sizeof(msg), "fileid: %ld / io_append: %ld / offset: %lld / resid: %lld\n", wreq.fileid, wreq.io_append, wreq.offset, wreq.resid);
-	tte_write(msg);
+	//tte_write(msg);
 	
 	ent = find_by_id(wreq.fileid);
 	if (ent == NULL) {
-		tte_write("ENTRY NOT FOUND\n");
+		//tte_write("ENTRY NOT FOUND\n");
 		wresp.exists = 0;
 		wresp.err = 1;
 		goto send_write_resp;
@@ -385,7 +385,7 @@ handle_write_request()
 	// dont need to do this todo either
 	if (wreq.offset + wreq.resid > ent->va_size) {
 		snprintf(msg, sizeof(msg), "calling setsize: offset: %lld , resid: %lld, sz: %lld\n", wreq.offset, wreq.resid, wreq.offset + wreq.resid);
-		tte_write(msg);
+		//tte_write(msg);
 		wresp.err = entry_setsize(ent,  wreq.offset + wreq.resid);
 	}
 
@@ -397,46 +397,46 @@ send_write_resp:
 	// instead the write_buf_request should be an entirely separate cmd
 	// with its own handler. then the wii can choose what to send and the
 	// offset
-	tte_write("ENTERING LOOP\n");
+	//tte_write("ENTERING LOOP\n");
 	uint32_t x;
 	while (wreq.resid > 0) {
 		snprintf(msg, sizeof(msg),"resid is %lld\n", wreq.resid);
-		tte_write(msg);
+		//tte_write(msg);
 		receive_response(linkCube, &breq, sizeof(struct write_buf_req));
 		SSWAP32(&breq, buflen);
 		x = breq.buflen;
 		src = breq.buf;
 		snprintf(msg, sizeof(msg), "received response: buflen: %ld - %s\n", breq.buflen, breq.buf);
-		tte_write(msg);
+		//tte_write(msg);
 
 		while (x > 0) {
 			copylen = MIN(wreq.resid, BLOCKLEFT(wreq.offset, PBA_BLOCKSIZE));
 			i = BLOCKNUM(wreq.offset, PBA_BLOCKSHIFT);
 			block = BLOCKFETCH(ent->va_fileid, i);
 			if (block) {
-				tte_write("BLOCKFOUND");
+				//tte_write("BLOCKFOUND");
 				snprintf(msg, sizeof(msg), "blockound: id: %ld, idx: %ld\n", block->va_fileid, block->idx);
-				tte_write(msg);
+				//tte_write(msg);
 			} else {
 				// TODO - send error
-				tte_write("BLOCK NOT FOUND!!!\n");
+				//tte_write("BLOCK NOT FOUND!!!\n");
 			}
 			dest = block->data + BLOCKOFF(wreq.offset, PBA_BLOCKSIZE);
 			snprintf(msg, sizeof(msg), "i is %d / blockoff is %lld\n", i, BLOCKOFF(wreq.offset, PBA_BLOCKSIZE));
-			tte_write(msg);
+			//tte_write(msg);
 			memcpy(dest, src, copylen);
-			tte_write("FINISHED THE MEMCPY!\n");
+			//tte_write("FINISHED THE MEMCPY!\n");
 			wreq.offset += copylen;
 			wreq.resid -= copylen;
 			x -= copylen;
 			src += copylen;
 		}
 
-		tte_write("FINISHED THIS REQUEST\n");
+		//tte_write("FINISHED THIS REQUEST\n");
 		send_request(linkCube, &bresp, sizeof(struct write_buf_resp));
 	}
 
-	tte_write("FINISHED LOOP\n");
+	//tte_write("FINISHED LOOP\n");
 	return 0;
 }
 
@@ -561,17 +561,17 @@ int main()
 
 	root = entry_init(VDIR);
 	if (root == NULL) {
-		tte_write("root is NULL\n");
+		//tte_write("root is NULL\n");
 	}
 	
 	test = entry_init(VREG);
 	if (test == NULL) {
-		tte_write("test is NULL\n");
+		//tte_write("test is NULL\n");
 	}
 	entry_append(root, test);
 	snprintf(test->name, sizeof(test->name), "hello.txt");
 
-	tte_write("Waiting for messages\n");
+	//tte_write("Waiting for messages\n");
 	while (true) {
 		while (linkCube->canRead()) {
 			recv = BSWAP32(linkCube->read());
@@ -603,10 +603,10 @@ int main()
 		if (Common::didPress(KEY_B, b)) {
 			tte_erase_screen();
 			tte_set_pos(0, 0);
-			tte_write("Waiting for messages\n");
+			//tte_write("Waiting for messages\n");
 		}
 
-		VBlankIntrWait();
+		//VBlankIntrWait();
 	}
 
 	return 0;

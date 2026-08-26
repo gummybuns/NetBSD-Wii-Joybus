@@ -48,9 +48,9 @@ puffboy_node_write(struct puffs_usermount *pu, void *opc, uint8_t *buf,
 		// TODO - constantize the 128 to a blocksize
 		copylen = MIN(*resid, 128);
 		memset(breq.buf, 0, 128);
-		printf("copylen is %d\n", copylen);
+		//printf("copylen is %d\n", copylen);
 		memcpy(breq.buf, src, copylen);
-		printf("Writing:\n%s\n", breq.buf);
+		//printf("Writing:\n%s\n", breq.buf);
 		breq.buflen = copylen;
 		do_gba_write(ctx, &breq, &bresp);
 		if (bresp.err > 0) {
@@ -59,6 +59,7 @@ puffboy_node_write(struct puffs_usermount *pu, void *opc, uint8_t *buf,
 		src += copylen;
 		*resid -= copylen;
 	}
+	printf("write done\n");
 	return 0;
 }
 
