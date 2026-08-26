@@ -42,6 +42,7 @@
 #define CMD_WRITE	0x0015
 #define CMD_READ	0x0016
 
+#define BLOCKSIZE	128
 #define WORD_CNT(n) 	((sizeof(n)+3)/4)
 #define SEQ_NUM(n) 	((n % 254) + 1)
 
@@ -145,7 +146,7 @@ struct write_resp {
 
 struct write_buf_req {
 	uint32_t	buflen;
-	uint8_t		buf[128];
+	uint8_t		buf[BLOCKSIZE];
 };
 
 struct write_buf_resp {
@@ -161,7 +162,7 @@ struct read_req {
 struct read_resp {
 	uint32_t	err;
 	uint32_t	copylen;
-	uint8_t		buf[128];
+	uint8_t		buf[BLOCKSIZE];
 };
 
 static struct packet

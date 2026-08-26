@@ -30,7 +30,7 @@ puffboy_node_read(struct puffs_usermount *pu, void *opc, uint8_t *buf,
 	 * keep going to resid is zero or the resp copylen is zero (eof)
 	 */
 	while (*resid > 0) {
-		req.copylen = MIN(*resid, 128);
+		req.copylen = MIN(*resid, BLOCKSIZE);
 		//printf("req.copylen: %d\n", req.copylen);
 		//printf("req.offset: %lld\n", req.offset);
 		do_gba_read(ctx, &req, &resp);

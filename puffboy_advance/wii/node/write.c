@@ -45,9 +45,8 @@ puffboy_node_write(struct puffs_usermount *pu, void *opc, uint8_t *buf,
 	printf("entering loop\n");
 	src = buf;
 	while (*resid > 0) {
-		// TODO - constantize the 128 to a blocksize
-		copylen = MIN(*resid, 128);
-		memset(breq.buf, 0, 128);
+		copylen = MIN(*resid, BLOCKSIZE);
+		memset(breq.buf, 0, BLOCKSIZE);
 		//printf("copylen is %d\n", copylen);
 		memcpy(breq.buf, src, copylen);
 		//printf("Writing:\n%s\n", breq.buf);

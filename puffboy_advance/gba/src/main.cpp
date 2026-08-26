@@ -10,8 +10,7 @@
 #define ENTRIES_MAX 20
 
 #define BLOCK_MAX 1024
-#define BLOCKSIZE 128
-#define PBA_BLOCKSHIFT (7)
+#define PBA_BLOCKSHIFT (7) // CHANGE THIS with BLOCKSIZE 2^x = BLOCKSIZE
 #define PBA_BLOCKSIZE  (1<<PBA_BLOCKSHIFT)
 #define ROUNDUP(a,b) ((a) & ((b)-1))
 #define BLOCKNUM(a,b) (((a) & ~((1<<(b))-1)) >> (b))
@@ -217,7 +216,7 @@ handle_create_request()
 	}
 
 	entry_append(parent, ent);
-	snprintf(ent->name, sizeof(ent->name), req.name);
+	//snprintf(ent->name, sizeof(ent->name), req.name);
 	resp.exists = 1;
 send_response:
 	if (resp.exists) {
@@ -253,7 +252,7 @@ entry_setsize(struct entry *ent, size_t newsize)
 	file = &ent->file;
 	needalloc = newsize > ROUNDUP(file->datalen, PBA_BLOCKSIZE);
 	shrinks = newsize < ent->va_size;
-	snprintf(msg, sizeof(msg), "newsize: %d / needalloc: %d / shrinks %d\n", newsize, needalloc, shrinks);
+	//snprintf(msg, sizeof(msg), "newsize: %d / needalloc: %d / shrinks %d\n", newsize, needalloc, shrinks);
 	//tte_write(msg);
 
 	if (needalloc || shrinks) {
@@ -286,7 +285,7 @@ entry_setsize(struct entry *ent, size_t newsize)
 
 		file->datalen = newsize;
 		file->numblocks = newblocks;
-		snprintf(msg, sizeof(msg), "newblocks: %d - datalen: %d\n", newblocks, file->datalen);
+		//snprintf(msg, sizeof(msg), "newblocks: %d - datalen: %d\n", newblocks, file->datalen);
 		//tte_write(msg);
 	}
 
@@ -315,7 +314,7 @@ handle_read_request()
 	SSWAP32(&req, copylen);
 	SSWAP64(&req, offset);
 
-	snprintf(msg, sizeof(msg), "%ld / %lld\n", req.copylen, req.offset);
+	//snprintf(msg, sizeof(msg), "%ld / %lld\n", req.copylen, req.offset);
 	//tte_write(msg);
 	ent = find_by_id(req.fileid);
 	if (ent == NULL) {
@@ -330,11 +329,11 @@ handle_read_request()
 	}
 
 	resp.copylen = MIN(file->datalen - req.offset, PBA_BLOCKSIZE);
-	snprintf(msg, sizeof(msg), "file->datalen: %d - resp.copylen: %ld\n", file->datalen, resp.copylen);
+	//snprintf(msg, sizeof(msg), "file->datalen: %d - resp.copylen: %ld\n", file->datalen, resp.copylen);
 	//tte_write(msg);
 	block = BLOCKFETCH(ent->va_fileid, BLOCKNUM(req.offset, PBA_BLOCKSHIFT));
 	src = block->data + BLOCKOFF(req.offset, PBA_BLOCKSIZE);
-	snprintf(msg, sizeof(msg), "block: %lld. blockoff: %lld\n", BLOCKNUM(req.offset, PBA_BLOCKSHIFT), BLOCKOFF(req.offset, PBA_BLOCKSIZE));
+	//snprintf(msg, sizeof(msg), "block: %lld. blockoff: %lld\n", BLOCKNUM(req.offset, PBA_BLOCKSHIFT), BLOCKOFF(req.offset, PBA_BLOCKSIZE));
 	//tte_write(msg);
 	memcpy(resp.buf, src, resp.copylen);
 	//tte_write("FINISHED MEMCPY\n");
@@ -363,7 +362,7 @@ handle_write_request()
 	SSWAP32(&wreq, io_append);
 	SSWAP64(&wreq, offset);
 	SSWAP64(&wreq, resid);
-	snprintf(msg, sizeof(msg), "fileid: %ld / io_append: %ld / offset: %lld / resid: %lld\n", wreq.fileid, wreq.io_append, wreq.offset, wreq.resid);
+	//snprintf(msg, sizeof(msg), "fileid: %ld / io_append: %ld / offset: %lld / resid: %lld\n", wreq.fileid, wreq.io_append, wreq.offset, wreq.resid);
 	//tte_write(msg);
 	
 	ent = find_by_id(wreq.fileid);
@@ -384,7 +383,7 @@ handle_write_request()
 	// might not need node_create to have all of that stuff returned so prolly
 	// dont need to do this todo either
 	if (wreq.offset + wreq.resid > ent->va_size) {
-		snprintf(msg, sizeof(msg), "calling setsize: offset: %lld , resid: %lld, sz: %lld\n", wreq.offset, wreq.resid, wreq.offset + wreq.resid);
+		//snprintf(msg, sizeof(msg), "calling setsize: offset: %lld , resid: %lld, sz: %lld\n", wreq.offset, wreq.resid, wreq.offset + wreq.resid);
 		//tte_write(msg);
 		wresp.err = entry_setsize(ent,  wreq.offset + wreq.resid);
 	}
@@ -400,13 +399,13 @@ send_write_resp:
 	//tte_write("ENTERING LOOP\n");
 	uint32_t x;
 	while (wreq.resid > 0) {
-		snprintf(msg, sizeof(msg),"resid is %lld\n", wreq.resid);
+		//snprintf(msg, sizeof(msg),"resid is %lld\n", wreq.resid);
 		//tte_write(msg);
 		receive_response(linkCube, &breq, sizeof(struct write_buf_req));
 		SSWAP32(&breq, buflen);
 		x = breq.buflen;
 		src = breq.buf;
-		snprintf(msg, sizeof(msg), "received response: buflen: %ld - %s\n", breq.buflen, breq.buf);
+		//snprintf(msg, sizeof(msg), "received response: buflen: %ld - %s\n", breq.buflen, breq.buf);
 		//tte_write(msg);
 
 		while (x > 0) {
@@ -415,14 +414,14 @@ send_write_resp:
 			block = BLOCKFETCH(ent->va_fileid, i);
 			if (block) {
 				//tte_write("BLOCKFOUND");
-				snprintf(msg, sizeof(msg), "blockound: id: %ld, idx: %ld\n", block->va_fileid, block->idx);
+				//snprintf(msg, sizeof(msg), "blockound: id: %ld, idx: %ld\n", block->va_fileid, block->idx);
 				//tte_write(msg);
 			} else {
 				// TODO - send error
 				//tte_write("BLOCK NOT FOUND!!!\n");
 			}
 			dest = block->data + BLOCKOFF(wreq.offset, PBA_BLOCKSIZE);
-			snprintf(msg, sizeof(msg), "i is %d / blockoff is %lld\n", i, BLOCKOFF(wreq.offset, PBA_BLOCKSIZE));
+			//snprintf(msg, sizeof(msg), "i is %d / blockoff is %lld\n", i, BLOCKOFF(wreq.offset, PBA_BLOCKSIZE));
 			//tte_write(msg);
 			memcpy(dest, src, copylen);
 			//tte_write("FINISHED THE MEMCPY!\n");
@@ -569,7 +568,7 @@ int main()
 		//tte_write("test is NULL\n");
 	}
 	entry_append(root, test);
-	snprintf(test->name, sizeof(test->name), "hello.txt");
+	//snprintf(test->name, sizeof(test->name), "hello.txt");
 
 	//tte_write("Waiting for messages\n");
 	while (true) {
