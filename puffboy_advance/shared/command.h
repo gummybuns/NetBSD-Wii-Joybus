@@ -54,8 +54,7 @@
 
 struct packet {
 	uint8_t seq;
-	uint8_t cmd;
-	uint16_t data;
+	uint8_t data[3];
 };
 
 struct readdir_req {
@@ -170,8 +169,9 @@ to_packet(uint32_t val)
 {
         struct packet pk;
         pk.seq = (val >> 24) & 0xFF;
-        pk.cmd = (val >> 16) & 0xFF;
-        pk.data = val & 0xFFFF;
+	pk.data[0] = (val >> 16) & 0xFF;
+	pk.data[1] = (val >> 8) & 0xFF;
+	pk.data[2] = val & 0xFF;
         return pk;
 }
 
@@ -183,11 +183,15 @@ send_request(void *ctx, void *req, size_t sz)
 	struct packet pk;
 	uint8_t buf[sz];
 
+	// why do i need a memcpy? cant i just cast as uint8_t
+	i = 0;
 	memcpy(buf, req, sz);
-	for (i = 0; i < sz / 2; i++) {
+	while (i < sz) {
+		memset(pk.data, 0, 3);
 		pk.seq = SEQ_NUM(i);
-		pk.cmd = 1;
-		pk.data = ((uint16_t *)buf)[i];
+		pk.data[0] = buf[i];
+		if ((i+1) < sz) pk.data[1] = buf[i+1];
+		if ((i+2) < sz) pk.data[2] = buf[i+2];
 		memcpy(&out, &pk, sizeof(uint32_t));
 #if defined(__powerpc__)
 		struct pba_context *jbctx = ctx;
@@ -195,6 +199,7 @@ send_request(void *ctx, void *req, size_t sz)
 # else
 		((LinkCube *)ctx)->send(out);
 #endif
+		i += 3;
 	}
 }
 #endif
@@ -209,7 +214,7 @@ receive_response(void *ctx, void *resp, size_t sz)
 	uint8_t buf[sz * 2];
 
 	i = 0;
-	while (i < sz / 2) {
+	while (i < sz) {
 #if defined(__powerpc__)
 		struct pba_context *jbctx = ctx;
 		jbctx->status = 0;
@@ -221,9 +226,13 @@ receive_response(void *ctx, void *resp, size_t sz)
 		recv = ntohl(linkCube->read());
 #endif
 		pk = to_packet(recv);
-		if (pk.seq == 0 || pk.cmd == 0) continue;
-		((uint16_t *)buf)[i] = ntohs(pk.data);
-		i++;
+		if (pk.seq == 0) continue;
+		buf[i] = pk.data[0];
+		if ((i+1) < sz) buf[i+1] = pk.data[1];
+		if ((i+2) < sz) buf[i+2] = pk.data[2];
+		i += 3;
 	}
+	// can i avoid this memcpy as well? if i somehow cast resp as a uint8_t
+	// buffer can i just write to it directly
 	memcpy(resp, buf, sz);
 }

@@ -18,7 +18,7 @@ puffboy_node_read(struct puffs_usermount *pu, void *opc, uint8_t *buf,
 	struct read_resp resp;
 	uint8_t *dest;
 
-	printf("IN READ - resid: %d\n", *resid);
+	//printf("IN READ - resid: %d\n", *resid);
 	ctx = puffs_getspecific(pu);
 
 	req.fileid = cookie_to_fileid(opc);
@@ -44,9 +44,11 @@ puffboy_node_read(struct puffs_usermount *pu, void *opc, uint8_t *buf,
 		}
 
 		memcpy(dest, resp.buf, resp.copylen);
+		//printf("%s\n", resp.buf);
 		req.offset += resp.copylen;
 		dest += resp.copylen;
 		*resid -= resp.copylen;
+		//printf("resid is now %d\n", *resid);
 	}
 
 	printf("read done\n");
