@@ -41,8 +41,8 @@ read_rom(struct rom *r)
 	exact_size = ftell(file);
 	rewind(file);
 	r->size = ((exact_size+7) & ~7);
-	printf("ROM EXACT SIZE: %d\n", exact_size);
-	printf("ROM ROUNDED SIZE: %d\n", r->size);
+	printf("ROM EXACT SIZE: %ld\n", exact_size);
+	printf("ROM ROUNDED SIZE: %ld\n", r->size);
 
 	r->buf = calloc(1, sizeof(unsigned char) * r->size);
 	if (r->buf == NULL) {
@@ -107,8 +107,7 @@ docrc(uint32_t crc, uint32_t val)
 static int multiboot(int fd, struct rom *r)
 {
 	uint32_t enc, sessionkeyraw, sessionkey, res, status;
-	int count, i;
-	unsigned int fcrc, ourkey, sendsize;
+	unsigned int i, count, fcrc, ourkey, sendsize;
 	unsigned char *rom = r->buf;
 	long size = r->size;
 
@@ -125,7 +124,7 @@ static int multiboot(int fd, struct rom *r)
 			 * my guess is the reset/identify need an extra bit of
 			 * time before you can start sending the data
 			 */
-			printf("multiboot: gba is ready\n", res);
+			printf("multiboot: gba is ready\n");
 			break;
 		}
 		if (count > MB_MAX_RETRY) {
