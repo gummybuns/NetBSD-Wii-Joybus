@@ -33,7 +33,43 @@
 	#define ntohl(n) 	BSWAP32(n)
 	#define htons(n) 	BSWAP16(n)
 	#define ntohs(n) 	BSWAP16(n)
+
+#define	__BIT(__n)							      \
+	(((__UINTMAX_TYPE__)(__n) >= __CHAR_BIT__ * sizeof(__UINTMAX_TYPE__)) \
+	    ? 0								      \
+	    : ((__UINTMAX_TYPE__)1 <<					      \
+		(__UINTMAX_TYPE__)((__n) &				      \
+		    (__CHAR_BIT__ * sizeof(__UINTMAX_TYPE__) - 1))))
+
+/* __MASK(n): first n bits all set, where __MASK(4) == 0b1111. */
+#define	__MASK(__n)	(__BIT(__n) - 1)
+
+/* Macros for min/max. */
+#define	__MIN(a,b)	((/*CONSTCOND*/(a)<=(b))?(a):(b))
+#define	__MAX(a,b)	((/*CONSTCOND*/(a)>(b))?(a):(b))
+
+/* __BITS(m, n): bits m through n, m < n. */
+#define	__BITS(__m, __n)	\
+	((__BIT(__MAX((__m), (__n)) + 1) - 1) ^ (__BIT(__MIN((__m), (__n))) - 1))
+
+/* find least significant bit that is set */
+#define	__LOWEST_SET_BIT(__mask) ((((__mask) - 1) & (__mask)) ^ (__mask))
+
+#define	__PRIuBIT	PRIuMAX
+#define	__PRIuBITS	__PRIuBIT
+
+#define	__PRIxBIT	PRIxMAX
+#define	__PRIxBITS	__PRIxBIT
+
+#define	__SHIFTOUT(__x, __mask)	(((__x) & (__mask)) / __LOWEST_SET_BIT(__mask))
+#define	__SHIFTIN(__x, __mask) ((__x) * __LOWEST_SET_BIT(__mask))
+#define	__SHIFTOUT_MASK(__mask) __SHIFTOUT((__mask), (__mask))
+
 #endif
+
+#define SSWAP16(s, n)	((s)->n = BSWAP16((s)->n))
+#define SSWAP32(s, n)	((s)->n = BSWAP32((s)->n))
+#define SSWAP64(s, n)	((s)->n = BSWAP64((s)->n))
 
 #define CMD_READDIR	0x0011
 #define CMD_LOOKUP	0x0012
@@ -45,12 +81,6 @@
 #define BLOCKSIZE	128
 #define WORD_CNT(n) 	((sizeof(n)+3)/4)
 #define SEQ_NUM(n) 	((n % 254) + 1)
-
-/* set and swap functions */
-#define SSWAP16(s, n)	((s)->n = BSWAP16((s)->n))
-#define SSWAP32(s, n)	((s)->n = BSWAP32((s)->n))
-#define SSWAP64(s, n)	((s)->n = BSWAP64((s)->n))
-
 
 struct packet {
 	uint8_t seq;
@@ -164,75 +194,95 @@ struct read_resp {
 	uint8_t		buf[BLOCKSIZE];
 };
 
-static struct packet
-to_packet(uint32_t val)
+static void
+do_send(void *ctx, uint32_t pkt)
 {
-        struct packet pk;
-        pk.seq = (val >> 24) & 0xFF;
-	pk.data[0] = (val >> 16) & 0xFF;
-	pk.data[1] = (val >> 8) & 0xFF;
-	pk.data[2] = val & 0xFF;
-        return pk;
+#if defined(__powerpc__)
+	struct pba_context *jbctx = ctx;
+	gba_write(jbctx->fd, pkt, &jbctx->status, jbctx->delay);
+#else
+	((LinkCube *)ctx)->send(pkt);
+#endif
 }
 
 static inline void
 send_request(void *ctx, void *req, size_t sz)
 {
 	size_t i;
-	uint32_t out;
-	struct packet pk;
-	uint8_t buf[sz];
+	uint8_t b[sz];
+	uint8_t out[4];
+	uint32_t remainder, cur, pkt;
 
 	// why do i need a memcpy? cant i just cast as uint8_t
 	i = 0;
-	memcpy(buf, req, sz);
+	remainder = 0;
+	memcpy(b, req, sz);
 	while (i < sz) {
-		memset(pk.data, 0, 3);
-		pk.seq = SEQ_NUM(i);
-		pk.data[0] = buf[i];
-		if ((i+1) < sz) pk.data[1] = buf[i+1];
-		if ((i+2) < sz) pk.data[2] = buf[i+2];
-		memcpy(&out, &pk, sizeof(uint32_t));
+		memset(out, 0, 4);
+		out[0] = b[i];
+		if ((i+1) < sz) out[1] = b[i+1];
+		if ((i+2) < sz) out[2] = b[i+2];
+		if ((i+3) < sz) out[3] = b[i+3];
+
+		cur = *(uint32_t *)out;
+		pkt = (1 << 31) | remainder | (cur & __BITS(0, 30));
+		do_send(ctx, pkt);
+		remainder = (cur & __BIT(31)) >> 1;
+		i += 4;
+	}
+
+	pkt = (1 << 31) | remainder;
+	do_send(ctx, pkt);
+}
+
+
+static uint32_t
+do_receive(void *ctx)
+{
 #if defined(__powerpc__)
 		struct pba_context *jbctx = ctx;
-		gba_write(jbctx->fd, out, &jbctx->status, jbctx->delay);
-# else
-		((LinkCube *)ctx)->send(out);
+		uint32_t recv;
+		while (1) {
+			recv = BSWAP32(ntohl(gba_read(jbctx->fd, &jbctx->status, jbctx->delay)));
+			if (recv != 0) break;
+		}
+		return recv;
+#else
+		LinkCube *linkCube = (LinkCube *)ctx;
+		while (!linkCube->canRead());
+		return ntohl(linkCube->read());
 #endif
-		i += 3;
-	}
 }
-#endif
-
 
 static inline void
 receive_response(void *ctx, void *resp, size_t sz)
 {
 	size_t i;
-	uint32_t recv;
-	struct packet pk;
-	uint8_t buf[sz * 2];
+	uint32_t in, recv;
+	uint8_t b[sz];
 
 	i = 0;
+	recv = do_receive(ctx);
+	in = recv & __BITS(0, 30);
+
 	while (i < sz) {
+		recv = do_receive(ctx);
+		in |= ((recv & __BIT(31)) << 1);
 #if defined(__powerpc__)
-		struct pba_context *jbctx = ctx;
-		jbctx->status = 0;
-		recv = ntohl(gba_read(jbctx->fd, &jbctx->status, jbctx->delay));
+		b[i] = (in) & 0xFF;
+		if ((i+1) < sz) b[i+1] = (in >> 8) & 0xFF;
+		if ((i+2) < sz) b[i+2] = (in >> 16) & 0xFF;
+		if ((i+3) < sz) b[i+3] = (in >> 24) & 0xFF;
 # else
-		LinkCube *linkCube = (LinkCube *)ctx;
-		// TODO need to inform the wii about this or maybe i just retry?
-		if (!linkCube->canRead()) continue;
-		recv = ntohl(linkCube->read());
+		b[i] = (in >> 24) & 0xFF;
+		if ((i+1) < sz) b[i+1] = (in >> 16) & 0xFF;
+		if ((i+2) < sz) b[i+2] = (in >> 8) & 0xFF;
+		if ((i+3) < sz) b[i+3] = in & 0xFF;
 #endif
-		pk = to_packet(recv);
-		if (pk.seq == 0) continue;
-		buf[i] = pk.data[0];
-		if ((i+1) < sz) buf[i+1] = pk.data[1];
-		if ((i+2) < sz) buf[i+2] = pk.data[2];
-		i += 3;
+
+		in = recv & __BITS(0, 30);
+		i += 4;
 	}
-	// can i avoid this memcpy as well? if i somehow cast resp as a uint8_t
-	// buffer can i just write to it directly
-	memcpy(resp, buf, sz);
+	memcpy(resp, b, sz);
 }
+#endif

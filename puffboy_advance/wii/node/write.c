@@ -30,6 +30,7 @@ puffboy_node_write(struct puffs_usermount *pu, void *opc, uint8_t *buf,
 	wreq.resid = *resid;
 	wreq.offset = offset;
 	wreq.io_append = (ioflag & PUFFS_IO_APPEND) > 0;
+	wresp.err = 0;
 	prepare_gba_write(ctx, &wreq, &wresp);
 	printf("finished prepare...\n");
 	if (!wresp.exists) {
