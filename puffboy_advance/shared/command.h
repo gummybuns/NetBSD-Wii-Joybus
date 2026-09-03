@@ -205,18 +205,22 @@ do_send(void *ctx, uint32_t pkt)
 #endif
 }
 
+#define SIZE		32
+#define BIT_MAX		31
+#define CHUNK_MAX	30
+
 static inline void
 send_request(void *ctx, void *req, size_t sz)
 {
 	size_t i;
-	uint8_t b[sz];
+	uint8_t *b;
 	uint8_t out[4];
-	uint32_t remainder, cur, pkt;
+	uint32_t carry, remainder, cur, pkt;
 
-	// why do i need a memcpy? cant i just cast as uint8_t
 	i = 0;
 	remainder = 0;
-	memcpy(b, req, sz);
+	carry = 0;
+	b = (uint8_t *)req;
 	while (i < sz) {
 		memset(out, 0, 4);
 		out[0] = b[i];
@@ -225,14 +229,24 @@ send_request(void *ctx, void *req, size_t sz)
 		if ((i+3) < sz) out[3] = b[i+3];
 
 		cur = *(uint32_t *)out;
-		pkt = (1 << 31) | remainder | (cur & __BITS(0, 30));
+		pkt = (1 << BIT_MAX) | remainder | (cur & __BITS(0, CHUNK_MAX - carry));
 		do_send(ctx, pkt);
-		remainder = (cur & __BIT(31)) >> 1;
+		remainder = (cur & __BITS(BIT_MAX, BIT_MAX - carry)) >> 1;
+
+		carry++;
+		if (carry == BIT_MAX) {
+			pkt = (1 << BIT_MAX) | remainder;
+			do_send(ctx, pkt);
+			remainder = 0;
+			carry = 0;
+		}
 		i += 4;
 	}
 
-	pkt = (1 << 31) | remainder;
-	do_send(ctx, pkt);
+	if (carry > 0) {
+		pkt = (1 << BIT_MAX) | remainder;
+		do_send(ctx, pkt);
+	}
 }
 
 
@@ -258,16 +272,22 @@ static inline void
 receive_response(void *ctx, void *resp, size_t sz)
 {
 	size_t i;
-	uint32_t in, recv;
-	uint8_t b[sz];
+	uint32_t in, remainder, recv, carry;
+	uint8_t *b;
 
+	b = (uint8_t *)resp;
 	i = 0;
+	carry = 0;
 	recv = do_receive(ctx);
-	in = recv & __BITS(0, 30);
+	in = recv & __BITS(0, CHUNK_MAX);
 
 	while (i < sz) {
 		recv = do_receive(ctx);
-		in |= ((recv & __BIT(31)) << 1);
+
+		remainder = ((recv << 1) & __BITS(BIT_MAX, BIT_MAX - carry));
+		carry++;
+		in |= remainder;
+
 #if defined(__powerpc__)
 		b[i] = (in) & 0xFF;
 		if ((i+1) < sz) b[i+1] = (in >> 8) & 0xFF;
@@ -279,10 +299,21 @@ receive_response(void *ctx, void *resp, size_t sz)
 		if ((i+2) < sz) b[i+2] = (in >> 8) & 0xFF;
 		if ((i+3) < sz) b[i+3] = in & 0xFF;
 #endif
+		if (carry == BIT_MAX) {
+			carry = 0;
+			remainder = 0;
 
-		in = recv & __BITS(0, 30);
+			if (i + 4 < sz) {
+				recv = do_receive(ctx);
+				in = recv & __BITS(0, CHUNK_MAX);
+			}
+		} else {
+			in = recv & __BITS(0, CHUNK_MAX - carry);
+		}
+
 		i += 4;
 	}
 	memcpy(resp, b, sz);
 }
+
 #endif
