@@ -77,6 +77,7 @@
 #define CMD_CREATE	0x0014
 #define CMD_WRITE	0x0015
 #define CMD_READ	0x0016
+#define CMD_MKDIR	0x0017
 
 #define BLOCKSIZE	128
 #define WORD_CNT(n) 	((sizeof(n)+3)/4)
@@ -136,11 +137,13 @@ struct getattr_resp {
 	uint64_t	va_spare;
 };
 
+/* using create for mkdir as well for now */
 struct create_req {
 	uint32_t	parent_fileid;
 	char		name[32];
 };
 
+/* using create for mkdir as well for now */
 struct create_resp {
 	uint32_t	exists;
 	uint32_t	va_type;

@@ -145,6 +145,7 @@ main(int argc, char *argv[])
 	PUFFSOP_SET(pops, puffboy, node, readdir);
 	PUFFSOP_SET(pops, puffboy, node, pathconf);
 	PUFFSOP_SET(pops, puffboy, node, getattr);
+	PUFFSOP_SET(pops, puffboy, node, mkdir);
 
 	//PUFFSOP_SET(pops, puffboy, node, access);
 	//PUFFSOP_SET(pops, puffboy, node, open);

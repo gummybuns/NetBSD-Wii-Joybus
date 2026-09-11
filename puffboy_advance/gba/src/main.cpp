@@ -201,7 +201,7 @@ handle_getattr_request()
 }
 
 static int
-handle_create_request()
+handle_create_request(enum vtype vt)
 {
 	struct create_req req;
 	struct create_resp resp;
@@ -219,7 +219,7 @@ handle_create_request()
 		goto send_response;	
 	}
 
-	ent = entry_init(VREG);
+	ent = entry_init(vt);
 	if (!ent) {
 		goto send_response;
 	}
@@ -603,13 +603,16 @@ int main()
 				handle_getattr_request();
 				break;
 			case CMD_CREATE:
-				handle_create_request();
+				handle_create_request(VREG);
 				break;
 			case CMD_WRITE:
 				handle_write_request();
 				break;
 			case CMD_READ:
 				handle_read_request();
+				break;
+			case CMD_MKDIR:
+				handle_create_request(VDIR);
 				break;
 			default:
 				break;
