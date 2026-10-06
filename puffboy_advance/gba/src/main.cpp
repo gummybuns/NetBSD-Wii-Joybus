@@ -27,6 +27,9 @@ struct gba_file {
 	size_t datalen;
 };
 
+/* i hope there is a way to make these properties smaller. do i need a u64
+ * for some of these??
+ */
 struct entry {
 	u32		va_type; /* i think this is supposed to be u32 as well */
 	u32		va_mode;
@@ -163,22 +166,13 @@ handle_getattr_request()
 	struct getattr_req req;
 	struct getattr_resp resp;
 	struct entry *ent;
-	//char msg[150];
 
 	receive_response(linkCube, &req, sizeof(struct getattr_req));
-	//snprintf(msg, sizeof(msg), "0x%08X\n", req.fileid);
-	//tte_write(msg);
 	SSWAP32(&req, fileid);
-	//snprintf(msg, sizeof(msg), "0x%08X\n", req.fileid);
-	//tte_write(msg);
-	//snprintf(msg, sizeof(msg), "test: %lld / %lld\n", req.test, SSWAP64(&req,test));
-	//tte_write(msg);
-
 	ent = find_by_id(req.fileid);
 
 	resp.exists = ent != NULL;
 	if (resp.exists) {
-		//tte_write("found!\n");
 		resp.va_type = ent->va_type;
 		resp.va_mode = ent->va_mode;
 		resp.va_nlink = ent->va_nlink;
@@ -256,13 +250,10 @@ entry_setsize(struct entry *ent, size_t newsize)
 	struct gba_block *block;
 	size_t newblocks, i;
 	int needalloc, shrinks;
-	//char msg[100];
 
 	file = &ent->file;
 	needalloc = newsize > ROUNDUP(file->datalen, PBA_BLOCKSIZE);
 	shrinks = newsize < ent->va_size;
-	//snprintf(msg, sizeof(msg), "newsize: %d / needalloc: %d / shrinks %d\n", newsize, needalloc, shrinks);
-	//tte_write(msg);
 
 	if (needalloc || shrinks) {
 		newblocks = BLOCKNUM(newsize, PBA_BLOCKSHIFT) + 1;
@@ -271,7 +262,6 @@ entry_setsize(struct entry *ent, size_t newsize)
 			for (i = newblocks; i < file->numblocks; i++) {
 				block = BLOCKFETCH(ent->va_fileid, i);
 				if (!block) {
-					//tte_write("BLOCK NOT FOUND!\n");
 					return EBLOCKNOTFOUND;
 				}
 				block->va_fileid = 0;
@@ -283,7 +273,6 @@ entry_setsize(struct entry *ent, size_t newsize)
 			for (i = file->numblocks; i < newblocks; i++) {
 				block = BLOCKFREE();
 				if (!block) {
-					//tte_write("NO BLOCKS FREE!\n");
 					return ENOBLOCKSFREE;
 				}
 				block->va_fileid = ent->va_fileid;
@@ -294,8 +283,6 @@ entry_setsize(struct entry *ent, size_t newsize)
 
 		file->datalen = newsize;
 		file->numblocks = newblocks;
-		//snprintf(msg, sizeof(msg), "newblocks: %d - datalen: %d\n", newblocks, file->datalen);
-		//tte_write(msg);
 	}
 
 	ent->va_size = newsize;
@@ -320,41 +307,24 @@ handle_read_request()
 	SSWAP32(&req, fileid);
 	SSWAP32(&req, copylen);
 	SSWAP64(&req, offset);
-	//snprintf(msg, sizeof(msg), "id: %ld / copylen %ld / offset: %lld\n", req.fileid, req.copylen, req.offset);
-	//tte_write(msg);
 
-	//snprintf(msg, sizeof(msg), "%ld / %lld\n", req.copylen, req.offset);
-	//tte_write(msg);
 	ent = find_by_id(req.fileid);
 	if (ent == NULL) {
-		//tte_write("not found error\n");
 		resp.err = 1;
 		goto send_read_resp;
 	}
 
 	file = &ent->file;
 	if (req.offset > file->datalen) {
-		//snprintf(msg, sizeof(msg), "err: offset %d > datalen %d\n", req.offset, file->datalen);
-		//tte_write(msg);
-
 		resp.err = 2;
 		goto send_read_resp;
 	}
 
 	resp.copylen = MIN(file->datalen - req.offset, PBA_BLOCKSIZE);
-	//snprintf(msg, sizeof(msg), "file->datalen: %d - resp.copylen: %ld\n", file->datalen, resp.copylen);
-	//tte_write(msg);
 	block = BLOCKFETCH(ent->va_fileid, BLOCKNUM(req.offset, PBA_BLOCKSHIFT));
 	src = block->data + BLOCKOFF(req.offset, PBA_BLOCKSIZE);
-	//snprintf(msg, sizeof(msg), "block: %lld. blockoff: %lld\n", BLOCKNUM(req.offset, PBA_BLOCKSHIFT), BLOCKOFF(req.offset, PBA_BLOCKSIZE));
-	//tte_write(msg);
 	memcpy(resp.buf, src, resp.copylen);
-	//snprintf(msg, sizeof(msg), "%s\n", resp.buf);
-	//tte_write(msg);
-	//tte_write("FINISHED MEMCPY\n");
 send_read_resp:
-	//snprintf(msg, sizeof(msg), "sending: err %d / copylen: %d\n", resp.err, resp.copylen);
-	//tte_write(msg);
 	send_request(linkCube, &resp, sizeof(struct read_resp));
 	return 0;
 }
@@ -367,24 +337,19 @@ handle_write_request()
 	struct write_buf_req breq;
 	struct write_buf_resp bresp;
 	struct entry *ent;
-	struct gba_file *file;
 	struct gba_block *block;
 	uint8_t *dest, *src;
 	size_t copylen;
 	int i;
-	//char msg[250];
 
 	receive_response(linkCube, &wreq, sizeof(struct write_req));
 	SSWAP32(&wreq, fileid);
 	SSWAP32(&wreq, io_append);
 	SSWAP64(&wreq, offset);
 	SSWAP64(&wreq, resid);
-	//snprintf(msg, sizeof(msg), "fileid: %ld / io_append: %ld / offset: %lld / resid: %lld\n", wreq.fileid, wreq.io_append, wreq.offset, wreq.resid);
-	//tte_write(msg);
 	
 	ent = find_by_id(wreq.fileid);
 	if (ent == NULL) {
-		//tte_write("ENTRY NOT FOUND\n");
 		wresp.exists = 0;
 		wresp.err = 1;
 		goto send_write_resp;
@@ -392,16 +357,7 @@ handle_write_request()
 	wresp.exists = 1;
 	wresp.err = 0;
 
-	file = &ent->file;
-
-	// TODO - should probably include the new size + bytes in the response
-	// so the puff_node can have its size updated
-	// although ls -l does properly fetch things.. on second thought i
-	// might not need node_create to have all of that stuff returned so prolly
-	// dont need to do this todo either
 	if (wreq.offset + wreq.resid > ent->va_size) {
-		//snprintf(msg, sizeof(msg), "calling setsize: offset: %lld , resid: %lld, sz: %lld\n", wreq.offset, wreq.resid, wreq.offset + wreq.resid);
-		//tte_write(msg);
 		wresp.err = entry_setsize(ent,  wreq.offset + wreq.resid);
 	}
 
@@ -413,46 +369,28 @@ send_write_resp:
 	// instead the write_buf_request should be an entirely separate cmd
 	// with its own handler. then the wii can choose what to send and the
 	// offset
-	//tte_write("ENTERING LOOP\n");
 	uint32_t x;
 	while (wreq.resid > 0) {
-		//snprintf(msg, sizeof(msg),"resid is %lld\n", wreq.resid);
-		//tte_write(msg);
 		receive_response(linkCube, &breq, sizeof(struct write_buf_req));
 		SSWAP32(&breq, buflen);
 		x = breq.buflen;
 		src = breq.buf;
-		//snprintf(msg, sizeof(msg), "received response: buflen: %ld\n", breq.buflen);
-		//tte_write(msg);
 
 		while (x > 0) {
 			copylen = MIN(wreq.resid, BLOCKLEFT(wreq.offset, PBA_BLOCKSIZE));
 			i = BLOCKNUM(wreq.offset, PBA_BLOCKSHIFT);
 			block = BLOCKFETCH(ent->va_fileid, i);
-			if (block) {
-				//tte_write("BLOCKFOUND");
-				//snprintf(msg, sizeof(msg), "blockound: id: %ld, idx: %ld\n", block->va_fileid, block->idx);
-				//tte_write(msg);
-			} else {
-				// TODO - send error
-				//tte_write("BLOCK NOT FOUND!!!\n");
-			}
 			dest = block->data + BLOCKOFF(wreq.offset, PBA_BLOCKSIZE);
-			//snprintf(msg, sizeof(msg), "i is %d / blockoff is %lld\n", i, BLOCKOFF(wreq.offset, PBA_BLOCKSIZE));
-			//tte_write(msg);
 			memcpy(dest, src, copylen);
-			//tte_write("FINISHED THE MEMCPY!\n");
 			wreq.offset += copylen;
 			wreq.resid -= copylen;
 			x -= copylen;
 			src += copylen;
 		}
 
-		//tte_write("FINISHED THIS REQUEST\n");
 		send_request(linkCube, &bresp, sizeof(struct write_buf_resp));
 	}
 
-	//tte_write("FINISHED LOOP\n");
 	return 0;
 }
 
@@ -576,19 +514,10 @@ int main()
 	}
 
 	root = entry_init(VDIR);
-	if (root == NULL) {
-		//tte_write("root is NULL\n");
-	}
-	
 	test = entry_init(VREG);
-	if (test == NULL) {
-		//tte_write("test is NULL\n");
-	}
 	entry_append(root, test);
-	//snprintf(root->name, sizeof(root->name), "ROOT_FOLDER");
 	snprintf(test->name, sizeof(test->name), "abcdefghijklmnopqrstuvwxyz12345");
-
-	//tte_write("Waiting for messages\n");
+	tte_write("puffboy is ready\n");
 	while (true) {
 		while (linkCube->canRead()) {
 			recv = BSWAP32(linkCube->read());
@@ -626,10 +555,8 @@ int main()
 			tte_set_pos(0, 0);
 			//tte_write("Waiting for messages\n");
 		}
+		VBlankIntrWait();
 		*/
-
-		//VBlankIntrWait();
 	}
-
 	return 0;
 }
