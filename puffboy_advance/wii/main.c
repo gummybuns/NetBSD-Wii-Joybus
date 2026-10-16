@@ -149,6 +149,7 @@ main(int argc, char *argv[])
 	PUFFSOP_SET(pops, puffboy, node, remove);
 	PUFFSOP_SET(pops, puffboy, node, inactive);
 	PUFFSOP_SET(pops, puffboy, node, reclaim);
+	PUFFSOP_SET(pops, puffboy, node, setattr);
 
 	//PUFFSOP_SET(pops, puffboy, node, access);
 	//PUFFSOP_SET(pops, puffboy, node, open);

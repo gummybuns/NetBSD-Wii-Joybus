@@ -3,8 +3,9 @@
 PROG=	pba
 SRCS+=	main.c pba_ops.c
 SRCS+=	fs/statvfs.c
-SRCS+=	node/reclaim.c node/inactive.c node/remove.c node/read.c node/create.c node/write.c node/mkdir.c
-SRCS+=	node/lookup.c node/readdir.c node/pathconf.c node/getattr.c
+SRCS+=	node/setattr.c node/reclaim.c node/inactive.c node/remove.c node/read.c
+SRCS+=	node/lookup.c node/readdir.c node/pathconf.c node/getattr.c node/write.c
+SRCS+=	node/create.c node/mkdir.c
 
 CPPFLAGS+=	-D_KERNTYPES -g
 DPADD+=		${LIBPUFFS}

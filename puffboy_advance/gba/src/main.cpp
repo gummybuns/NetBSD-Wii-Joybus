@@ -269,6 +269,12 @@ entry_setsize(struct entry *ent, size_t newsize)
 				}
 				block->va_fileid = 0;
 				block->idx = 0;
+				/*
+				 * since we memset to 0 whenever the block is
+				 * taken next i dont think we really need this
+				 * but it feels good to just clean up
+				 */
+				memset(block->data, 0, BLOCKSIZE);
 			}
 		}
 
@@ -329,6 +335,33 @@ handle_read_request()
 	memcpy(resp.buf, src, resp.copylen);
 send_read_resp:
 	send_request(linkCube, &resp, sizeof(struct read_resp));
+	return 0;
+}
+
+static int
+handle_setsize_request()
+{
+	struct setattr_req req;
+	struct setattr_resp resp;
+	struct entry *ent;
+
+	resp.err = 0;
+
+	receive_response(linkCube, &req, sizeof(struct setattr_req));
+	SSWAP32(&req, va_fileid);
+	SSWAP64(&req, va_size);
+
+	ent = find_by_id(req.va_fileid);
+	if (!ent) {
+		resp.err = ENOENT;
+		goto send_response;
+	}
+	entry_setsize(ent, req.va_size);
+	resp.va_fileid = ent->va_fileid;
+	resp.va_size = ent->va_size;
+	resp.va_bytes = ent->va_bytes;
+send_response:
+	send_request(linkCube, &resp, sizeof(struct setattr_resp));
 	return 0;
 }
 
@@ -676,6 +709,10 @@ int main()
 				break;
 			case CMD_RECLAIM:
 				handle_reclaim_request();
+				break;
+			case CMD_SETSIZE:
+				handle_setsize_request();
+				break;
 			default:
 				break;
 			}
