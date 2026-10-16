@@ -56,6 +56,7 @@ int puffboy_node_create(struct puffs_usermount *pu, void *opc,
 	pn_va->va_bytes = resp.va_bytes;
 	pn_va->va_filerev = resp.va_filerev;
 	pn_va->va_vaflags = resp.va_vaflags;
+	pn_va->va_nlink = resp.va_nlink;
 	printf("i finished setting stuff from the response\n");
 
 	puffs_newinfo_setcookie(pni, fileid_to_cookie(resp.va_fileid));

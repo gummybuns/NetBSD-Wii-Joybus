@@ -19,6 +19,7 @@
 #define EBLOCKNOTFOUND 	1
 #define ENOBLOCKSFREE	2
 
+
 /* taken from NetBSD-src/sys/sys/vnode.h */
 enum vtype      { VNON, VREG, VDIR, VBLK, VCHR, VLNK, VSOCK, VFIFO, VBAD };
 
@@ -65,6 +66,8 @@ uint32_t merge_packets(struct packet, struct packet);
 static struct entry *entry_init(enum vtype);
 static void entry_append(struct entry *, struct entry *);
 uint32_t entry_setsize(struct entry *ent,  size_t sz);
+static void entry_remove(struct entry *, struct entry *);
+static void entry_reclaim(struct entry *);
 
 bool a = true, b = true, l = true;
 int ID = 1;
@@ -140,12 +143,13 @@ handle_lookup_request()
 	}
 
 	ent = parent->child;
-	do {
+	while (ent) {
 		if (strcmp(ent->name, req.name) == 0) {
 			match = ent;
 			break;
-		}	
-	} while (ent->next);
+		}
+		ent = ent->next;
+	}
 send_response:
 	resp.exists = match != NULL;
 	if (match) {
@@ -176,7 +180,6 @@ handle_getattr_request()
 		resp.va_type = ent->va_type;
 		resp.va_mode = ent->va_mode;
 		resp.va_nlink = ent->va_nlink;
-		resp.va_nlink = 0xAA;
 		resp.va_uid = ent->va_uid;
 		resp.va_gid = ent->va_gid;
 		resp.va_gen = ent->va_gen;
@@ -438,6 +441,125 @@ send_response:
 	return 0;
 }
 
+static int
+handle_reclaim_request()
+{
+	struct reclaim_req req;
+	struct reclaim_resp resp;
+	struct entry *ent;
+
+	resp.err = 0;
+	resp.va_fileid = 0;
+
+	receive_response(linkCube, &req, sizeof(struct reclaim_req));
+	SSWAP32(&req, va_fileid);
+
+	ent = find_by_id(req.va_fileid);
+	if (!ent) {
+		resp.err = ENOENT;
+		goto send_response;
+	}
+
+	resp.va_fileid = ent->va_fileid;
+	entry_reclaim(ent);
+	resp.va_nlink = ent->va_nlink;
+send_response:
+	send_request(linkCube, &resp, sizeof(struct reclaim_resp));
+	return 0;
+}
+
+static int
+handle_rm_request()
+{
+	struct rm_req req;
+	struct rm_resp resp;
+	struct entry *parent, *res, *ent;
+
+	parent = NULL;
+	res = NULL;
+	resp.err = 0;
+	resp.va_fileid = 0;
+
+	receive_response(linkCube, &req, sizeof(struct rm_req));
+	SSWAP32(&req, parent_fileid);
+
+	parent = find_by_id(req.parent_fileid);
+	if (!parent || !parent->child) {
+		resp.err = ENOENT;
+		goto send_response;
+	}
+
+	if (parent->va_type != VDIR) {
+		resp.err = ENOTDIR;
+		goto send_response;
+	}
+
+	ent = parent->child;
+	while (ent) {
+		if (strcmp(ent->name, req.name) == 0) {
+			res = ent;
+			break;
+		}
+		ent = ent->next;
+	}
+
+	if (res == NULL) {
+		resp.err = ENOENT;
+		goto send_response;
+	}
+
+	resp.va_fileid = res->va_fileid;
+	entry_remove(parent, res);
+	resp.va_nlink = res->va_nlink;
+send_response:
+	send_request(linkCube, &resp, sizeof(struct rm_resp));
+	return 0;
+}
+
+static void
+entry_reclaim(struct entry *ent)
+{
+	int i;
+	struct gba_block *block;
+
+	/* seems kinda hacky but i can leave all of the values as-is
+	 * besides the va_fileid. setting it to 0 is how we identify
+	 * an available entry. and the next time it is used all values
+	 * get overwritten in entry_init()
+	 */
+	for (i = 0; i < ENTRIES_MAX; i++) {
+		if (ENTRIES[i].va_fileid == ent->va_fileid) {
+			ENTRIES[i].va_fileid = 0;
+		}
+	}
+
+	for (i = 0; i < BLOCK_MAX; i++) {
+		if (GBA_BLOCKS[i].va_fileid == ent->va_fileid) {
+			block = &GBA_BLOCKS[i];
+			block->va_fileid = 0;
+			block->idx = 0;
+			memset(block->data, 0, BLOCKSIZE);
+		}
+	}
+}
+
+static void
+entry_remove(struct entry *parent, struct entry *ent)
+{
+	struct entry *prev;
+
+	prev = parent->child;
+	while (prev) {
+		if (prev->next && prev->next->va_fileid == ent->va_fileid) {
+			prev->next = ent->next;
+			break;
+		}
+		prev = prev->next;
+	}
+
+	ent->va_nlink--;
+}
+
 static struct entry *
 entry_init(enum vtype type)
 {
@@ -462,12 +584,16 @@ entry_init(enum vtype type)
 	ent->child = NULL;
 	ent->file.numblocks = 0;
 	ent->file.datalen = 0;
+	/*
+	 * va_nlink should be 2 for directory, 1 for file
+	 * entry_append (which adds the file to the dir) will increment
+	 */
 	if (type == VDIR) {
 		ent->va_mode = 0777;
-		ent->va_nlink = 1; /* n + 1 after adding dent */
+		ent->va_nlink = 1;
 	} else {
 		ent->va_mode = 0666;
-		ent->va_nlink = 0; /* n + 1 */
+		ent->va_nlink = 0;
 	}
 	ent->va_uid = 0;
 	ent->va_gid = 0;
@@ -497,6 +623,8 @@ entry_append(struct entry *parent, struct entry *ent)
 		n = n->next;
 	}
 	n->next = ent;
+
+	ent->va_nlink++;
 }
 
 int main()
@@ -543,6 +671,11 @@ int main()
 			case CMD_MKDIR:
 				handle_create_request(VDIR);
 				break;
+			case CMD_RM:
+				handle_rm_request();
+				break;
+			case CMD_RECLAIM:
+				handle_reclaim_request();
 			default:
 				break;
 			}

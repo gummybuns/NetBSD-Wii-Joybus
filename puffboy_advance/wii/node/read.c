@@ -30,6 +30,19 @@ puffboy_node_read(struct puffs_usermount *pu, void *opc, uint8_t *buf,
 	 */
 	while (*resid > 0) {
 		req.copylen = MIN(*resid, BLOCKSIZE);
+		/**
+		 * i think what i want is the following:
+		 * how do you pool them together? its not just the fileid since
+		 * every request has a different offset as well. the same
+		 * problem for every request..
+		 * pcc = puffs_cc_getcc(pu);
+		 * pba_txn = txn_init(pcc, ctx, req);
+		 * pba_enqueue(pcc, ctx, req
+		 * ....
+		 * https://troydhanson.github.io/uthash/userguide.html
+		 * https://github.com/troydhanson/uthash/blob/master/src/uthash.h
+		 * seems
+		 */
 		do_gba_read(ctx, &req, &resp);
 
 		if (resp.err) {

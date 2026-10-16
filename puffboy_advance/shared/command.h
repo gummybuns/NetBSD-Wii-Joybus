@@ -78,6 +78,8 @@
 #define CMD_WRITE	0x0015
 #define CMD_READ	0x0016
 #define CMD_MKDIR	0x0017
+#define CMD_RM		0x0018
+#define CMD_RECLAIM	0x0019
 
 #define BLOCKSIZE	128
 #define WORD_CNT(n) 	((sizeof(n)+3)/4)
@@ -195,6 +197,27 @@ struct read_resp {
 	uint32_t	err;
 	uint32_t	copylen;
 	uint8_t		buf[BLOCKSIZE];
+};
+
+struct rm_req {
+	uint32_t parent_fileid;
+	char 		name[32];
+};
+
+struct rm_resp {
+	uint32_t err;
+	uint32_t va_fileid;
+	uint32_t va_nlink;
+};
+
+struct reclaim_req {
+	uint32_t va_fileid;
+};
+
+struct reclaim_resp {
+	uint32_t err;
+	uint32_t va_fileid;
+	uint32_t va_nlink;
 };
 
 static void
