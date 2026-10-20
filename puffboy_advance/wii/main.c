@@ -16,26 +16,6 @@
 #define TEST_FILE_NAME "hello.txt"
 
 /*
- * GBA Communication
- *
- * I can only send 4 bytes over at a time
- * But before I send the actual payload over I need to send a single uint32_t
- * that tells the gameboy what type of command to receive.
- *
- * i think what we want is to have something like
- *
- * 1. Gameboy is ready to receive a command
- * 2. Wii sends cmd request.
- * 3. Wii waits for the cmd to echo back.
- * 4. Gameboy receives the request
- * 5. Gameboy mallocs space for the exact payload based on the type of request
- * 6. Gameboy sends the exact request back
- * 7. Gameboy sends the response
- * 8. Wii sees the cmd echod back
- * 9. Wii reads data back until nothing comes back
- */
-
-/*
  * Looking at other examples the first thing you want to do is create the root
  * node.
  */

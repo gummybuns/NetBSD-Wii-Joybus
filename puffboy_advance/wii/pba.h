@@ -5,7 +5,7 @@
 
 #include <puffs.h>
 
-#define DELAY		50
+#define DELAY		30
 #define READY_TIMEOUT	100000
 #define MSG_TIMEOUT	5000
 

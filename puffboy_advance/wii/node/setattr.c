@@ -45,8 +45,15 @@ puffboy_node_setattr(struct puffs_usermount *pu, void *opc,
 				printf("setattr returned err %d\n", resp.err);
 				return resp.err;
 			}
-			pn->pn_va.va_bytes = resp.va_bytes;
 			pn->pn_va.va_size = resp.va_size;
+			/* for some reason h_dtfs sets the va_bytes to the
+			 * new size, even though the dtfs_setsize sets the
+			 * va_bytes. what i noticed is the va_bytes always comes
+			 * out to zero. so this is probably some sort of bug
+			 * fix. i will keep the same for now although there
+			 * is now a mismatch in the gba and the puff node...
+			 */
+			pn->pn_va.va_bytes = resp.va_size;
 			break;
 		case VBLK:
 		case VCHR:
