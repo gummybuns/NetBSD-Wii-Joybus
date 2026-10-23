@@ -301,6 +301,40 @@ entry_setsize(struct entry *ent, size_t newsize)
 }
 
 static int
+handle_statvfs_request()
+{
+	struct statvfs_resp resp;
+	int i;
+
+	resp.f_blocks = BLOCK_MAX;
+	resp.f_bsize = BLOCKSIZE;
+	resp.f_frsize = BLOCKSIZE;
+	resp.f_bfree = 0;
+	resp.f_bavail = 0;
+	resp.f_bresvd = 0;
+	for (i = 0; i < BLOCK_MAX; i++) {
+		if (GBA_BLOCKS[i].va_fileid == 0) {
+			resp.f_bfree++;
+		}
+	}
+	resp.f_bavail = resp.f_bfree;
+
+	resp.f_files = ENTRIES_MAX;
+	resp.f_ffree = 0;
+	resp.f_favail = 0;
+	resp.f_fresvd = 0;
+	for (i = 0; i < ENTRIES_MAX; i++) {
+		if (ENTRIES[i].va_fileid == 0) {
+			resp.f_ffree++;
+		}
+	}
+	resp.f_favail = resp.f_ffree;
+	send_request(linkCube, &resp, sizeof(struct statvfs_resp));
+
+	return 0;
+}
+
+static int
 handle_read_request()
 {
 	struct read_req req;
@@ -683,6 +717,9 @@ int main()
 		while (linkCube->canRead()) {
 			recv = BSWAP32(linkCube->read());
 			switch (recv) {
+			case CMD_STATVFS:
+				handle_statvfs_request();
+				break;
 			case CMD_READDIR:
 				handle_readdir_request();
 				break;

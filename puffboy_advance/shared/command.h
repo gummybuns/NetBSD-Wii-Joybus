@@ -71,6 +71,7 @@
 #define SSWAP32(s, n)	((s)->n = BSWAP32((s)->n))
 #define SSWAP64(s, n)	((s)->n = BSWAP64((s)->n))
 
+#define CMD_STATVFS	0x0010
 #define CMD_READDIR	0x0011
 #define CMD_LOOKUP	0x0012
 #define CMD_GETATTR	0x0013
@@ -89,6 +90,19 @@
 struct packet {
 	uint8_t seq;
 	uint8_t data[3];
+};
+
+struct statvfs_resp {
+	uint32_t	f_bsize;	/* fs block size */
+	uint32_t	f_frsize;	/* fundamental fs block size */
+	uint32_t	f_blocks;	/* number of blocks in fs */
+	uint32_t	f_bfree;	/* free blocks avail */
+	uint32_t	f_bavail;	/* free blocks avail to non root */
+	uint32_t	f_bresvd;	/* blocks reserved for root */
+	uint32_t	f_files;	/* total file nodes in fs */
+	uint32_t	f_ffree;	/* free file nodes in fs */
+	uint32_t	f_favail;	/* free file nodes avail to non-root */
+	uint32_t	f_fresvd;	/* file nodes reserved for root */
 };
 
 struct readdir_req {
