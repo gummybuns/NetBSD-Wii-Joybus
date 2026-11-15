@@ -1,6 +1,7 @@
 #ifndef LINK_COMMON_H
 #define LINK_COMMON_H
 
+#include <string.h>
 #ifndef LINK_DEVELOPMENT
 #pragma GCC system_header
 #endif
@@ -283,6 +284,14 @@ class AsyncMultiboot {
 template <typename T, u32 Size>
 class Queue {
  public:
+  void set(void *data, u32 sz) {
+    clear();
+    memcpy(arr, data, sz);
+    count = sz / 4;
+    rear = (count - 1) % Size;
+    return;
+  }
+
   void push(T item) {
     if (isFull()) {
       overflow = true;  // (flag that the queue overflowed)
@@ -342,6 +351,22 @@ class Queue {
     LINK_BARRIER;
 
     push(item);
+
+    LINK_BARRIER;
+    _isWriting = false;
+    LINK_BARRIER;
+
+    if (_needsClear) {
+      clear();
+      _needsClear = false;
+    }
+  }
+
+  void syncSet(void *data, u32 sz) {
+    _isWriting = true;
+    LINK_BARRIER;
+
+    set(data, sz);
 
     LINK_BARRIER;
     _isWriting = false;

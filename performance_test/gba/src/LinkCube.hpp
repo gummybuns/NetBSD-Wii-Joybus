@@ -41,7 +41,7 @@
  * data races), and 1 outgoing queue.
  * \warning You can approximate the usage with `LINK_CUBE_QUEUE_SIZE * 12`.
  */
-#define LINK_CUBE_QUEUE_SIZE 1024
+#define LINK_CUBE_QUEUE_SIZE 1028
 #endif
 
 LINK_VERSION_TAG LINK_CUBE_VERSION = "vLinkCube/v8.0.3";
@@ -157,6 +157,14 @@ class LinkCube {
 
     outgoingQueue.syncPush(data);
   }
+
+  void sendArr(void *data, u32 sz) {
+    if (!isEnabled)
+      return;
+
+    outgoingQueue.syncSet(data, sz);
+  }
+
 
   /**
    * @brief Returns the number of pending outgoing transfers.

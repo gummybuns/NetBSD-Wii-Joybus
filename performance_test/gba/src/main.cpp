@@ -5,8 +5,6 @@
 
 #include <string.h>
 
-#define ENTRIES_MAX 20
-
 LinkCube* linkCube = new LinkCube();
 
 void init() {
@@ -24,13 +22,18 @@ int main()
 	linkCube->activate();
 	u32 recv;
 	tte_write("Ready\n");
+	u32 data[1025];
 	while (true) {
 		while (linkCube->canRead()) {
 			recv = linkCube->read();
 			if (recv > 0) {
-				for (int i = 0; i < 1024; i++) {
-					linkCube->send(i);
+				data[0] = 1111;
+
+				for (int i = 1; i < 1025; i++) {
+					data[i] = i;
 				}
+
+				linkCube->sendArr(data, sizeof(u32) * 1025);
 			}
 		}
 

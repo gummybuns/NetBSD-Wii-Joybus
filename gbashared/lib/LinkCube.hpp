@@ -158,6 +158,13 @@ class LinkCube {
     outgoingQueue.syncPush(data);
   }
 
+  void sendArr(void *data, u32 sz) {
+    if (!isEnabled)
+      return;
+
+    outgoingQueue.syncSet(data, sz);
+  }
+
   /**
    * @brief Returns the number of pending outgoing transfers.
    */

@@ -18,6 +18,8 @@
 #define READY_TIMEOUT	100000
 #define MSG_TIMEOUT	5000
 
+#define DEBUG 0
+
 uint32_t status;
 int fd;
 
@@ -113,10 +115,27 @@ main(int argc, char *argv[])
 
 		clock_gettime(CLOCK_MONOTONIC, &before);
 		gba_write(fd, bswap32(1), &status, DELAY);
+
+		i = 0;
+		for (;;) {
+			read_in = bswap32(gba_read(fd, &status, DELAY));
+#if DEBUG
+			printf("received %d\n", read_in);
+#endif
+			if (read_in == 1111) break;
+		}
+
+		printf("found ready. starting actual read\n");
 		i = 0;
 		while (i < 1024) {
-			read_in = gba_read(fd, &status, DELAY);
-			if (read_in == 0) continue;
+			read_in = gba_read(fd, &status, 0);
+#if DEBUG
+			if (read_in == 0) {
+				printf("IT GOT A ZERO!!!!\n");
+				continue;
+			};
+			printf("received %d\n", bswap32(read_in));
+#endif
 			if (read_in) i += 4;
 		}
 		clock_gettime(CLOCK_MONOTONIC, &after);
