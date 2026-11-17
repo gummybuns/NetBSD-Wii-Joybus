@@ -33,43 +33,13 @@
 	#define ntohl(n) 	BSWAP32(n)
 	#define htons(n) 	BSWAP16(n)
 	#define ntohs(n) 	BSWAP16(n)
-
-#define	__BIT(__n)							      \
-	(((__UINTMAX_TYPE__)(__n) >= __CHAR_BIT__ * sizeof(__UINTMAX_TYPE__)) \
-	    ? 0								      \
-	    : ((__UINTMAX_TYPE__)1 <<					      \
-		(__UINTMAX_TYPE__)((__n) &				      \
-		    (__CHAR_BIT__ * sizeof(__UINTMAX_TYPE__) - 1))))
-
-/* __MASK(n): first n bits all set, where __MASK(4) == 0b1111. */
-#define	__MASK(__n)	(__BIT(__n) - 1)
-
-/* Macros for min/max. */
-#define	__MIN(a,b)	((/*CONSTCOND*/(a)<=(b))?(a):(b))
-#define	__MAX(a,b)	((/*CONSTCOND*/(a)>(b))?(a):(b))
-
-/* __BITS(m, n): bits m through n, m < n. */
-#define	__BITS(__m, __n)	\
-	((__BIT(__MAX((__m), (__n)) + 1) - 1) ^ (__BIT(__MIN((__m), (__n))) - 1))
-
-/* find least significant bit that is set */
-#define	__LOWEST_SET_BIT(__mask) ((((__mask) - 1) & (__mask)) ^ (__mask))
-
-#define	__PRIuBIT	PRIuMAX
-#define	__PRIuBITS	__PRIuBIT
-
-#define	__PRIxBIT	PRIxMAX
-#define	__PRIxBITS	__PRIxBIT
-
-#define	__SHIFTOUT(__x, __mask)	(((__x) & (__mask)) / __LOWEST_SET_BIT(__mask))
-#define	__SHIFTIN(__x, __mask) ((__x) * __LOWEST_SET_BIT(__mask))
-#define	__SHIFTOUT_MASK(__mask) __SHIFTOUT((__mask), (__mask))
-
 #endif
 
 #define SSWAP16(s, n)	((s)->n = BSWAP16((s)->n))
 #define SSWAP32(s, n)	((s)->n = BSWAP32((s)->n))
 #define SSWAP64(s, n)	((s)->n = BSWAP64((s)->n))
+
+#define CMD_READY	111
 
 #define CMD_STATVFS	0x0010
 #define CMD_READDIR	0x0011
@@ -86,11 +56,6 @@
 #define BLOCKSIZE	128
 #define WORD_CNT(n) 	((sizeof(n)+3)/4)
 #define SEQ_NUM(n) 	((n % 254) + 1)
-
-struct packet {
-	uint8_t seq;
-	uint8_t data[3];
-};
 
 struct statvfs_resp {
 	uint32_t	f_bsize;	/* fs block size */
@@ -247,77 +212,49 @@ struct setattr_resp {
 	uint64_t va_size;
 };
 
-static void
-do_send(void *ctx, uint32_t pkt)
-{
-#if defined(__powerpc__)
-	struct pba_context *jbctx = ctx;
-	gba_write(jbctx->fd, pkt, &jbctx->status, jbctx->delay);
-#else
-	((LinkCube *)ctx)->send(pkt);
-#endif
-}
-
-#define SIZE		32
-#define BIT_MAX		31
-#define CHUNK_MAX	30
-
 static inline void
 send_request(void *ctx, void *req, size_t sz)
 {
 	size_t i;
 	uint8_t *b;
-	uint8_t out[4];
-	uint32_t carry, remainder, cur, pkt;
 
-	i = 0;
-	remainder = 0;
-	carry = 0;
+#if defined(__powerpc__)
+	struct pba_context *jbctx = ctx;
+	uint8_t out[4];
+	uint32_t cur;
+
 	b = (uint8_t *)req;
+	i = 0;
 	while (i < sz) {
 		memset(out, 0, 4);
 		out[0] = b[i];
 		if ((i+1) < sz) out[1] = b[i+1];
 		if ((i+2) < sz) out[2] = b[i+2];
 		if ((i+3) < sz) out[3] = b[i+3];
-
 		cur = *(uint32_t *)out;
-		pkt = (1 << BIT_MAX) | remainder | (cur & __BITS(0, CHUNK_MAX - carry));
-		do_send(ctx, pkt);
-		remainder = (cur & __BITS(BIT_MAX, BIT_MAX - carry)) >> 1;
-
-		carry++;
-		if (carry == BIT_MAX) {
-			pkt = (1 << BIT_MAX) | remainder;
-			do_send(ctx, pkt);
-			remainder = 0;
-			carry = 0;
-		}
+		gba_write(jbctx->fd, cur, &jbctx->status, jbctx->delay);
 		i += 4;
 	}
-
-	if (carry > 0) {
-		pkt = (1 << BIT_MAX) | remainder;
-		do_send(ctx, pkt);
-	}
-}
-
-
-static uint32_t
-do_receive(void *ctx)
-{
-#if defined(__powerpc__)
-		struct pba_context *jbctx = ctx;
-		uint32_t recv;
-		while (1) {
-			recv = BSWAP32(ntohl(gba_read(jbctx->fd, &jbctx->status, jbctx->delay)));
-			if (recv != 0) break;
-		}
-		return recv;
 #else
-		LinkCube *linkCube = (LinkCube *)ctx;
-		while (!linkCube->canRead());
-		return ntohl(linkCube->read());
+	uint8_t out_arr[sz + 4];
+	size_t j;
+
+	memset(out_arr, 0, sz + 4);
+	out_arr[0] = CMD_READY;
+
+	b = (uint8_t *)req;
+	i = 0;
+	j = 4;
+	while (i < sz) {
+		out_arr[j] = b[i];
+		if ((i+1) < sz) out_arr[j+1] = b[i+1];
+		if ((i+2) < sz) out_arr[j+2] = b[i+2];
+		if ((i+3) < sz) out_arr[j+3] = b[i+3];
+		i += 4;
+		j += 4;
+	}
+
+	((LinkCube *)ctx)->sendArr(out_arr, sz + 4);
 #endif
 }
 
@@ -325,47 +262,44 @@ static inline void
 receive_response(void *ctx, void *resp, size_t sz)
 {
 	size_t i;
-	uint32_t in, remainder, recv, carry;
+	uint32_t in;
 	uint8_t *b;
 
 	b = (uint8_t *)resp;
-	i = 0;
-	carry = 0;
-	recv = do_receive(ctx);
-	in = recv & __BITS(0, CHUNK_MAX);
-
-	while (i < sz) {
-		recv = do_receive(ctx);
-
-		remainder = ((recv << 1) & __BITS(BIT_MAX, BIT_MAX - carry));
-		carry++;
-		in |= remainder;
 
 #if defined(__powerpc__)
+	struct pba_context *jbctx = ctx;
+
+	while (1) {
+		in = BSWAP32(ntohl(gba_read(jbctx->fd, &jbctx->status,
+			     jbctx->delay)));
+		if (in == CMD_READY) break;
+	}
+
+	i = 0;
+	while (i < sz) {
+		in = BSWAP32(ntohl(gba_read(jbctx->fd, &jbctx->status,
+					    jbctx->delay)));
 		b[i] = (in) & 0xFF;
 		if ((i+1) < sz) b[i+1] = (in >> 8) & 0xFF;
 		if ((i+2) < sz) b[i+2] = (in >> 16) & 0xFF;
 		if ((i+3) < sz) b[i+3] = (in >> 24) & 0xFF;
-# else
+		i += 4;
+	}
+#else
+	i = 0;
+	while (i < sz) {
+		LinkCube *linkCube = (LinkCube *)ctx;
+		while (!linkCube->canRead());
+		in = ntohl(linkCube->read());
 		b[i] = (in >> 24) & 0xFF;
 		if ((i+1) < sz) b[i+1] = (in >> 16) & 0xFF;
 		if ((i+2) < sz) b[i+2] = (in >> 8) & 0xFF;
 		if ((i+3) < sz) b[i+3] = in & 0xFF;
-#endif
-		if (carry == BIT_MAX) {
-			carry = 0;
-			remainder = 0;
-
-			if (i + 4 < sz) {
-				recv = do_receive(ctx);
-				in = recv & __BITS(0, CHUNK_MAX);
-			}
-		} else {
-			in = recv & __BITS(0, CHUNK_MAX - carry);
-		}
-
 		i += 4;
 	}
+#endif
+
 	memcpy(resp, b, sz);
 }
 
