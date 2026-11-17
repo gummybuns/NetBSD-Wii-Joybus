@@ -23,9 +23,11 @@
 uint32_t status;
 int fd;
 
-static const char *shortopts = "d:g::";
+static const char *shortopts = "d:s:w:g::";
 static struct option longopts[] = {
 	{	"device",	required_argument,	NULL,	'd'	},
+	{	"send-delay",	required_argument,	NULL,	's'	},
+	{	"wait-delay",	required_argument,	NULL,	'w'	},
 	{	"gba-file",	optional_argument,	NULL,	'g'	},
 };
 
@@ -51,23 +53,46 @@ wait_clear(long delay, long timeout)
 	}
 }
 
+static void
+decode_uint(const char *arg, unsigned *intp)
+{
+	char *ep;
+	unsigned ret;
+
+	ret = (unsigned)strtoul(arg, &ep, 10);
+
+	if (ep[0] == '\0') {
+		*intp = ret;
+		return;
+	}
+	errx(1, "argument `%s' not a valid integer", arg);
+}
 int
 main(int argc, char *argv[])
 {
 	int res, ch, i;
 	struct rom rom;
 	const char *device, *gba_file;
-	uint32_t read_in;
+	uint32_t read_in, prev;
+	unsigned int wait_delay, send_delay;
 	struct timespec before, after;
 
 	device = DEFAULT_DEV;
 	gba_file = NULL;
+	wait_delay = DELAY;
+	send_delay = DELAY;
 
 	while (
 	    (ch = getopt_long(argc, argv, shortopts, longopts, NULL)) != -1) {
 		switch (ch) {
 		case 'd':
 			device = optarg;
+			break;
+		case 'w':
+			decode_uint(optarg, &wait_delay);
+			break;
+		case 's':
+			decode_uint(optarg, &send_delay);
 			break;
 		case 'g':
 			if (optarg == NULL && argv[optind] != NULL &&
@@ -79,6 +104,7 @@ main(int argc, char *argv[])
 				    ? DEFAULT_PATH : optarg;
 			}
 			break;
+
 		default:
 			usage();
 		}
@@ -114,11 +140,11 @@ main(int argc, char *argv[])
 		}
 
 		clock_gettime(CLOCK_MONOTONIC, &before);
-		gba_write(fd, bswap32(1), &status, DELAY);
+		gba_write(fd, bswap32(1), &status, wait_delay);
 
 		i = 0;
 		for (;;) {
-			read_in = bswap32(gba_read(fd, &status, DELAY));
+			read_in = bswap32(gba_read(fd, &status, wait_delay));
 #if DEBUG
 			printf("received %d\n", read_in);
 #endif
@@ -127,16 +153,29 @@ main(int argc, char *argv[])
 
 		printf("found ready. starting actual read\n");
 		i = 0;
+		prev = 0;
 		while (i < 1024) {
-			read_in = gba_read(fd, &status, 0);
+			read_in = bswap32(gba_read(fd, &status, send_delay));
 #if DEBUG
 			if (read_in == 0) {
 				printf("IT GOT A ZERO!!!!\n");
 				continue;
 			};
-			printf("received %d\n", bswap32(read_in));
+			printf("received %d\n", read_in);
 #endif
-			if (read_in) i += 4;
+			if (status != 0) {
+				errx(1, "status failed with 0x%08X\n", status);
+			}
+
+			if (read_in) {
+				if (read_in != prev + 1) {
+					errx(1, "check failed. read_in should "
+						"be %d but got %d", prev + 1,
+						read_in);
+				}
+				prev = read_in;
+				i += 4;
+			}
 		}
 		clock_gettime(CLOCK_MONOTONIC, &after);
 		long long elapsed_ms = (after.tv_sec - before.tv_sec) * 1000LL
